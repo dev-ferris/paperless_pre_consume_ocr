@@ -1,0 +1,1 @@
+# paperless_pre_consume_ocr
