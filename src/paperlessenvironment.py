@@ -1,28 +1,29 @@
 import os
+from functools import cached_property
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 import psycopg
 from psycopg.rows import dict_row
 
-# Setup logging
 from logger import get_logger
+
 logger = get_logger(__name__)
 
 
 class PaperlessConfig:
-    """Database configuration class."""
+    """Database configuration for retrieving OCR settings from Paperless-NGX."""
 
     __DEFAULT_OCR_CONFIG = {
-            'language': 'deu+eng',
-            'mode': 'skip',
-            'image_dpi': 300,
-            'output_type': 'pdf',
-            'deskew': True,
-            'rotate_pages': True,
-            'rotate_pages_threshold': 8.0,
-            'color_conversion_strategy': 'LeaveColorUnchanged',
-            'max_image_pixels': 178956970  # Default ocrmypdf limit
-        }
+        'language': 'deu+eng',
+        'mode': 'skip',
+        'image_dpi': 300,
+        'output_type': 'pdf',
+        'deskew': True,
+        'rotate_pages': True,
+        'rotate_pages_threshold': 8.0,
+        'color_conversion_strategy': 'LeaveColorUnchanged',
+        'max_image_pixels': 178956970,  # Default ocrmypdf limit
+    }
 
     def __init__(self):
         self.host = os.environ.get("PAPERLESS_DBHOST")
@@ -30,26 +31,27 @@ class PaperlessConfig:
         self.name = os.environ.get("PAPERLESS_DBNAME", "paperless")
         self.user = os.environ.get("PAPERLESS_DBUSER", "paperless")
         self.password = os.environ.get("PAPERLESS_DBPW", "paperless")
-            
-        # Validation
+
         if not self.host:
             raise ValueError("PAPERLESS_DBHOST environment variable is required")
-        
-    def get_ocr_config(self) -> Optional[Dict[str, Any]]:
+
+    def get_ocr_config(self) -> Dict[str, Any]:
         """Retrieve OCR configuration from database."""
         try:
             conn_str = (
-                f"host={self.host} port={self.port} dbname={self.name}"
+                f"host={self.host} port={self.port} dbname={self.name} "
                 f"user={self.user} password={self.password}"
             )
-            
-            logger.info(f"Connecting to database ({self.name}) at {self.host}:{self.port} as {self.user}")
+
+            logger.info(
+                f"Connecting to database ({self.name}) at {self.host}:{self.port} as {self.user}"
+            )
 
             with psycopg.connect(conn_str, row_factory=dict_row) as conn:
                 with conn.cursor() as cur:
                     cur.execute(
-                        "SELECT * FROM paperless_applicationconfiguration WHERE id = %s;", 
-                        (1,)
+                        "SELECT * FROM paperless_applicationconfiguration WHERE id = %s;",
+                        (1,),
                     )
 
                     result = cur.fetchone()
@@ -57,18 +59,20 @@ class PaperlessConfig:
                         logger.info("OCR configuration loaded from database")
                         return dict(result)
                     else:
-                        logger.warning("No OCR configuration found in database, using defaults")
+                        logger.warning(
+                            "No OCR configuration found in database, using defaults"
+                        )
                         return self.__DEFAULT_OCR_CONFIG
 
         except Exception as e:
             logger.error(f"Database connection failed: {e}")
             logger.info("Using default OCR configuration")
             return self.__DEFAULT_OCR_CONFIG
-        
+
 
 class PaperlessPaths:
-    """Environment variables configuration class."""
-    
+    """Resolve and validate Paperless document paths from environment variables."""
+
     def __init__(self):
         working_path = os.environ.get("DOCUMENT_WORKING_PATH")
 
@@ -76,30 +80,33 @@ class PaperlessPaths:
             raise ValueError("DOCUMENT_WORKING_PATH environment variable is required")
 
         self.working = Path(working_path)
-        self.source = Path(os.environ.get("DOCUMENT_SOURCE_PATH"))
-        self.consume = Path(os.environ.get("DOCUMENT_CONSUME_PATH", "/usr/src/paperless/consume"))
+
+        source_path = os.environ.get("DOCUMENT_SOURCE_PATH")
+        self.source = Path(source_path) if source_path else None
+
+        self.consume = Path(
+            os.environ.get("DOCUMENT_CONSUME_PATH", "/usr/src/paperless/consume")
+        )
 
         if not self.working.exists():
-            raise FileNotFoundError(f"Document file does not exist: {self.working}")
+            raise FileNotFoundError(
+                f"Document file does not exist: {self.working}"
+            )
 
 
 class PaperlessEnvironment:
     """Class to manage Paperless environment configuration."""
-    
+
     def __init__(self):
         """Extract and validate environment configuration."""
         self.task_id = os.environ.get("TASK_ID", "paperless")
 
-    @property
+    @cached_property
     def paths(self) -> PaperlessPaths:
         """Return paths configuration."""
-        if not hasattr(self, '_paths'):
-            self._paths = PaperlessPaths()
-        return self._paths
-    
-    @property
+        return PaperlessPaths()
+
+    @cached_property
     def config(self) -> PaperlessConfig:
-        """Return paths configuration."""
-        if not hasattr(self, '_config'):
-            self._config = PaperlessConfig()
-        return self._config
+        """Return OCR/database configuration."""
+        return PaperlessConfig()
