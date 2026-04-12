@@ -1,44 +1,44 @@
 # paperless_pre_consume_ocr
 
-OCR-Vorverarbeitungs-Skript für [Paperless-NGX](https://github.com/paperless-ngx/paperless-ngx), das Dokumente bereits **vor dem Konsum** durch Paperless mit OCR versieht.
+OCR pre-processing script for [Paperless-NGX](https://github.com/paperless-ngx/paperless-ngx) that applies OCR to documents **before** they are consumed by Paperless.
 
 ## Motivation
 
-Standardmäßig erzeugt Paperless-NGX beim Konsum eines Dokuments zusätzlich eine separate Archiv-Datei mit dem durchsuchbaren OCR-Text. Das führt zu doppeltem Speicherverbrauch (Original + Archiv).
+By default, Paperless-NGX creates a separate archive file containing the searchable OCR text whenever a document is consumed. This leads to duplicate storage (original + archive).
 
-Dieses Skript löst das Problem, indem es:
+This script solves that problem by:
 
-1. Das Originaldokument **vor dem Konsum** mit OCR versieht
-2. Den OCR-Text direkt in das Original-PDF einbettet
-3. Paperless so konfiguriert werden kann, dass keine Archiv-Dateien mehr erzeugt werden
+1. Running OCR on the original document **before** it is consumed
+2. Embedding the OCR text directly into the original PDF
+3. Allowing Paperless to be configured to skip generating archive files
 
-Das Ergebnis: Nur **Original + Thumbnail** werden gespeichert, und das Original ist bereits durchsuchbar.
+The result: only the **original + thumbnail** are stored, and the original is already searchable.
 
 ## Features
 
-- **PDF-Verarbeitung**: Führt OCR mit `ocrmypdf` durch und nutzt die OCR-Einstellungen aus der Paperless-NGX-Datenbank
-- **Bild-zu-PDF-Konvertierung**: Wandelt Bilder (JPEG, PNG, TIFF, BMP, WebP, etc.) in PDFs um, die Paperless dann konsumieren kann
-- **Intelligente OCR-Erkennung**: Überspringt OCR bei bereits verarbeiteten oder textbasierten PDFs, erkennt Scanner-Signaturen in den Metadaten
-- **Bildoptimierung**: DPI-Anpassung, Alpha-Kanal-Entfernung, EXIF-Orientierung, Größenanpassung
-- **Vollständig konfigurierbar** über die Paperless-NGX-UI (OCR-Einstellungen werden aus der Datenbank gelesen)
+- **PDF processing**: Runs OCR using `ocrmypdf` with OCR settings read from the Paperless-NGX database
+- **Image-to-PDF conversion**: Converts images (JPEG, PNG, TIFF, BMP, WebP, etc.) to PDFs that Paperless then consumes
+- **Smart OCR detection**: Skips OCR on already-processed or text-based PDFs, detects scanner signatures in metadata
+- **Image optimization**: DPI adjustment, alpha channel removal, EXIF orientation handling, resizing
+- **Fully configurable** through the Paperless-NGX UI (OCR settings are read from the database)
 
-## Architektur
+## Architecture
 
 ```
 src/
-├── paperless_pre_consume_ocr.py  # Einstiegspunkt
-├── paperlessenvironment.py       # Umgebungsvariablen + DB-Config
-├── imageconverter.py             # Bild → PDF Konvertierung
-├── ocrprocessor.py               # OCR-Verarbeitung via ocrmypdf
-├── pdfprocessor.py               # PDF-Metadaten & Text-Extraktion
-├── exceptions.py                 # Custom Exceptions
-└── logger.py                     # Logging-Setup
+├── paperless_pre_consume_ocr.py  # Entry point
+├── paperlessenvironment.py       # Environment variables + DB config
+├── imageconverter.py             # Image → PDF conversion
+├── ocrprocessor.py               # OCR processing via ocrmypdf
+├── pdfprocessor.py               # PDF metadata & text extraction
+├── exceptions.py                 # Custom exceptions
+└── logger.py                     # Logging setup
 ```
 
-### Verarbeitungsablauf
+### Processing flow
 
 ```
-Dokument im consume/ Ordner
+Document in consume/ folder
          │
          ▼
 ┌─────────────────────┐
@@ -49,61 +49,61 @@ Dokument im consume/ Ordner
     │         │
     ▼         ▼
 ┌───────┐ ┌──────┐
-│ Bild? │ │ PDF? │
+│Image? │ │ PDF? │
 └───────┘ └──────┘
     │         │
     ▼         ▼
-Bild→PDF  OCR mit
-Exit 10   ocrmypdf
+Image→PDF  OCR via
+Exit 10    ocrmypdf
     │         │
     │         ▼
     │    Paperless
-    │    konsumiert
-    │    das PDF
-    │    (bereits OCR)
+    │    consumes
+    │    the PDF
+    │    (already OCR'd)
     │
     ▼
-Paperless konsumiert
-das konvertierte PDF
-(separater Durchlauf)
+Paperless consumes
+the converted PDF
+(separate run)
 ```
 
-Bilder werden in zwei Phasen verarbeitet:
-1. **Phase 1**: Bild → PDF-Konvertierung, Platzierung im Consume-Ordner, Exit-Code `10` (bricht den Konsum des Originals ab)
-2. **Phase 2**: Paperless greift das konvertierte PDF auf, das Skript führt dann OCR darauf aus
+Images are processed in two phases:
+1. **Phase 1**: Image → PDF conversion, placed in the consume folder, exit code `10` (cancels consumption of the original)
+2. **Phase 2**: Paperless picks up the converted PDF, and the script then runs OCR on it
 
 ## Installation
 
-### Voraussetzungen
+### Prerequisites
 
 - Python ≥ 3.10
 - Paperless-NGX
-- Systemabhängigkeiten: `tesseract-ocr`, `ghostscript`, `qpdf`, `unpaper` (werden von `ocrmypdf` benötigt)
+- System dependencies: `tesseract-ocr`, `ghostscript`, `qpdf`, `unpaper` (required by `ocrmypdf`)
 
-### Python-Abhängigkeiten
+### Python dependencies
 
 ```bash
 pip install -e .
 ```
 
-Oder manuell:
+Or manually:
 
 ```bash
 pip install ocrmypdf Pillow img2pdf pikepdf pdfminer.six "psycopg[binary]"
 ```
 
-## Konfiguration
+## Configuration
 
-### Paperless-NGX Umgebungsvariablen
+### Paperless-NGX environment variables
 
-Füge diese Variablen zu deinem `docker-compose.yml` oder deiner `paperless.conf` hinzu:
+Add these variables to your `docker-compose.yml` or `paperless.conf`:
 
 ```yaml
 environment:
-  # Pfad zum Pre-Consume-Skript
+  # Path to the pre-consume script
   PAPERLESS_PRE_CONSUME_SCRIPT: /usr/src/paperless/scripts/paperless_pre_consume_ocr.py
 
-  # Datenbank-Zugang (wird vom Skript verwendet, um OCR-Einstellungen zu lesen)
+  # Database access (used by the script to read OCR settings)
   PAPERLESS_DBHOST: db
   PAPERLESS_DBPORT: 5432
   PAPERLESS_DBNAME: paperless
@@ -111,45 +111,45 @@ environment:
   PAPERLESS_DBPW: paperless
 ```
 
-Zusätzlich die Archiv-Datei-Erzeugung deaktivieren (optional, aber empfohlen):
+Also disable archive file generation (optional, but recommended):
 
 ```yaml
 environment:
   PAPERLESS_OCR_SKIP_ARCHIVE_FILE: with_text
 ```
 
-### Vom Skript verwendete Umgebungsvariablen
+### Environment variables used by the script
 
-Paperless-NGX setzt diese automatisch beim Aufruf des Pre-Consume-Skripts:
+Paperless-NGX sets these automatically when invoking the pre-consume script:
 
-| Variable | Beschreibung |
-|----------|--------------|
-| `DOCUMENT_WORKING_PATH` | Pfad zur aktuell verarbeiteten Datei (erforderlich) |
-| `DOCUMENT_SOURCE_PATH` | Originalpfad des Dokuments (optional) |
-| `DOCUMENT_CONSUME_PATH` | Pfad zum Consume-Ordner (Default: `/usr/src/paperless/consume`) |
-| `TASK_ID` | ID des Verarbeitungs-Tasks (optional) |
-| `PAPERLESS_DBHOST` | Datenbank-Host (erforderlich) |
-| `PAPERLESS_DBPORT` | Datenbank-Port (Default: `5432`) |
-| `PAPERLESS_DBNAME` | Datenbank-Name (Default: `paperless`) |
-| `PAPERLESS_DBUSER` | Datenbank-Benutzer (Default: `paperless`) |
-| `PAPERLESS_DBPW` | Datenbank-Passwort (Default: `paperless`) |
+| Variable | Description |
+|----------|-------------|
+| `DOCUMENT_WORKING_PATH` | Path to the file currently being processed (required) |
+| `DOCUMENT_SOURCE_PATH` | Original path of the document (optional) |
+| `DOCUMENT_CONSUME_PATH` | Path to the consume folder (default: `/usr/src/paperless/consume`) |
+| `TASK_ID` | ID of the processing task (optional) |
+| `PAPERLESS_DBHOST` | Database host (required) |
+| `PAPERLESS_DBPORT` | Database port (default: `5432`) |
+| `PAPERLESS_DBNAME` | Database name (default: `paperless`) |
+| `PAPERLESS_DBUSER` | Database user (default: `paperless`) |
+| `PAPERLESS_DBPW` | Database password (default: `paperless`) |
 
-## Exit-Codes
+## Exit codes
 
-| Code | Bedeutung |
-|------|-----------|
-| `0` | Erfolg (OCR wurde durchgeführt oder war nicht nötig) |
-| `10` | Bild wurde zu PDF konvertiert — Original-Konsum wird abgebrochen, konvertiertes PDF wird separat konsumiert |
-| `2` | Fehler bei der Dateiverarbeitung |
-| `3` | Unerwarteter Fehler |
-| `os.EX_CONFIG` (`78`) | Konfigurations- oder Datenbankfehler |
-| `os.EX_NOINPUT` (`66`) | Datei nicht gefunden |
+| Code | Meaning |
+|------|---------|
+| `0` | Success (OCR was performed or not needed) |
+| `10` | Image was converted to PDF — original consumption is cancelled, the converted PDF is consumed separately |
+| `2` | File processing error |
+| `3` | Unexpected error |
+| `os.EX_CONFIG` (`78`) | Configuration or database error |
+| `os.EX_NOINPUT` (`66`) | File not found |
 
-## Unterstützte Formate
+## Supported formats
 
-**OCR-Verarbeitung**: `.pdf`
+**OCR processing**: `.pdf`
 
-**Bild-Konvertierung**: `.jpg`, `.jpeg`, `.png`, `.bmp`, `.tiff`, `.tif`, `.webp`, `.gif`, `.ico`, `.pcx`, `.ppm`, `.pgm`, `.pbm`
+**Image conversion**: `.jpg`, `.jpeg`, `.png`, `.bmp`, `.tiff`, `.tif`, `.webp`, `.gif`, `.ico`, `.pcx`, `.ppm`, `.pgm`, `.pbm`
 
 ## Tests
 
@@ -158,8 +158,8 @@ pip install -e ".[dev]"
 pytest tests/
 ```
 
-Die Testsuite umfasst 70 Unit-Tests und deckt alle Module ab.
+The test suite contains 70 unit tests and covers all modules.
 
-## Lizenz
+## License
 
-Siehe [LICENSE](LICENSE).
+See [LICENSE](LICENSE).
