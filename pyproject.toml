@@ -1,0 +1,23 @@
+[project]
+name = "paperless-pre-consume-ocr"
+version = "1.0.0"
+description = "OCR pre-processing script for Paperless-NGX"
+requires-python = ">=3.10"
+dependencies = [
+    "ocrmypdf>=15.0",
+    "Pillow>=10.0",
+    "img2pdf>=0.5",
+    "pikepdf>=8.0",
+    "pdfminer.six>=20221105",
+    "psycopg[binary]>=3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
