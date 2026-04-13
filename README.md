@@ -94,29 +94,94 @@ pip install ocrmypdf Pillow img2pdf pikepdf pdfminer.six "psycopg[binary]"
 
 ## Configuration
 
-### Paperless-NGX environment variables
+### Hooking the script into Paperless-NGX
 
-Add these variables to your `docker-compose.yml` or `paperless.conf`:
+Paperless-NGX runs a single executable file referenced by the
+`PAPERLESS_PRE_CONSUME_SCRIPT` environment variable before each document
+is consumed. The steps below show how to wire this project into a
+typical Docker Compose deployment.
 
-```yaml
-environment:
-  # Path to the pre-consume script
-  PAPERLESS_PRE_CONSUME_SCRIPT: /usr/src/paperless/scripts/paperless_pre_consume_ocr.py
+#### 1. Make the source available inside the container
 
-  # Database access (used by the script to read OCR settings)
-  PAPERLESS_DBHOST: db
-  PAPERLESS_DBPORT: 5432
-  PAPERLESS_DBNAME: paperless
-  PAPERLESS_DBUSER: paperless
-  PAPERLESS_DBPW: paperless
-```
-
-Also disable archive file generation (optional, but recommended):
+Mount the `src/` directory of this repository into the Paperless
+container, e.g. at `/usr/src/paperless/scripts`:
 
 ```yaml
-environment:
-  PAPERLESS_OCR_SKIP_ARCHIVE_FILE: with_text
+services:
+  webserver:
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    volumes:
+      - ./paperless_pre_consume_ocr/src:/usr/src/paperless/scripts:ro
+      - ./consume:/usr/src/paperless/consume
+      - ./data:/usr/src/paperless/data
+      - ./media:/usr/src/paperless/media
 ```
+
+> The script imports its sibling modules (`ocrprocessor.py`,
+> `imageconverter.py`, …) via relative imports, so the **whole `src/`
+> folder** must be mounted — not just the entry-point file.
+
+#### 2. Install the Python dependencies inside the container
+
+Paperless-NGX already ships with `ocrmypdf`, `Pillow`, `pikepdf` and
+`pdfminer.six`. The only extras the script needs are `img2pdf` and
+`psycopg`. The cleanest way is a small custom image:
+
+```dockerfile
+FROM ghcr.io/paperless-ngx/paperless-ngx:latest
+
+RUN pip install --no-cache-dir img2pdf "psycopg[binary]"
+```
+
+Alternatively you can install them at container start via a
+`command:` override, but a dedicated image is more reliable.
+
+#### 3. Point Paperless at the script
+
+Add the following to the `environment:` block of the `webserver`
+service in `docker-compose.yml`:
+
+```yaml
+    environment:
+      # Path to the pre-consume script (inside the container)
+      PAPERLESS_PRE_CONSUME_SCRIPT: /usr/src/paperless/scripts/paperless_pre_consume_ocr.py
+
+      # Skip writing the separate archive file — the original is now
+      # already searchable, so the archive copy is redundant.
+      PAPERLESS_OCR_SKIP_ARCHIVE_FILE: with_text
+
+      # Database access (used by the script to read the OCR settings
+      # configured in the Paperless-NGX UI). These are normally already
+      # present in your compose file for Paperless itself.
+      PAPERLESS_DBHOST: db
+      PAPERLESS_DBPORT: 5432
+      PAPERLESS_DBNAME: paperless
+      PAPERLESS_DBUSER: paperless
+      PAPERLESS_DBPW: paperless
+```
+
+#### 4. Make the entry point executable
+
+Paperless executes the script directly, so the entry-point file needs
+the executable bit set on the host:
+
+```bash
+chmod +x paperless_pre_consume_ocr/src/paperless_pre_consume_ocr.py
+```
+
+The shebang at the top of the file (`#!/usr/bin/env python3`) ensures
+it runs with the container's Python interpreter.
+
+#### 5. Restart and verify
+
+```bash
+docker compose up -d --build
+docker compose logs -f webserver | grep -i "pre.consume\|ocr"
+```
+
+Drop a scanned PDF or an image into the consume folder. The Paperless
+log should now show the pre-consume script running and `ocrmypdf`
+embedding the text layer **before** Paperless itself takes over.
 
 ### Environment variables used by the script
 
