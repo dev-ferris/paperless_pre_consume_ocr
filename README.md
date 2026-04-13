@@ -135,6 +135,16 @@ RUN pip install --no-cache-dir /tmp/paperless_pre_consume_ocr \
 This installs the `paperless-pre-consume-ocr` console script at
 `/usr/local/bin/paperless-pre-consume-ocr` inside the container.
 
+> **Alternative: mount the source instead of building an image.** If
+> you'd rather bind-mount the repository into a vanilla Paperless-NGX
+> container, point `PAPERLESS_PRE_CONSUME_SCRIPT` at the package's
+> `__main__.py` (e.g. `/usr/src/paperless_user_scripts/pre_consume_ocr/__main__.py`).
+> The file ships with a shebang and is marked executable, and it adds
+> its own parent directory to `sys.path`, so direct execution by
+> Paperless works out of the box. You still need to install the runtime
+> dependencies (`img2pdf`, `psycopg`, …) inside the container — the
+> upstream image only ships with some of them.
+
 #### 2. Point Paperless at the script
 
 Add the following to the `environment:` block of the `webserver`
