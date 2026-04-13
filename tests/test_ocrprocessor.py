@@ -192,7 +192,7 @@ class TestProcess:
         mock_pdf.has_text.return_value = False
 
         # Simulate ocrmypdf emptying the file
-        def mock_ocr(**kwargs):
+        def mock_ocr(*args, **kwargs):
             test_file.write_bytes(b"")
 
         mock_ocrmypdf.ocr.side_effect = mock_ocr

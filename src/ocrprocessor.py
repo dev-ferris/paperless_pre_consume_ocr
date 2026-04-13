@@ -135,6 +135,13 @@ class OCRProcessor:
             # image_dpi is only relevant for image inputs, not PDFs
             ocrmypdf_args.pop('image_dpi', None)
 
+            # ocrmypdf >= 16 renamed the first parameter to
+            # `input_file_or_options` and accepts it positionally only.
+            # Pop input/output file from kwargs and pass them positionally
+            # so we stay compatible across ocrmypdf versions.
+            input_file = ocrmypdf_args.pop("input_file")
+            output_file = ocrmypdf_args.pop("output_file")
+
             logger.info("Starting OCR processing")
             logger.info(f"OCR parameters: {ocrmypdf_args}")
 
@@ -145,7 +152,7 @@ class OCRProcessor:
                 manage_root_logger=False,
             )
 
-            ocrmypdf.ocr(**ocrmypdf_args)
+            ocrmypdf.ocr(input_file, output_file, **ocrmypdf_args)
 
             logger.info("OCR processing completed successfully")
 
