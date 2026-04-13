@@ -43,10 +43,22 @@ class TestBuildOcrmypdfArgs:
         assert args.get("redo_ocr") is True
 
     def test_max_image_pixels_conversion(self):
-        """max_image_pixels should be converted to megapixels."""
+        """max_image_pixels should be rounded to megapixels."""
         proc = self._make_processor({"max_image_pixels": 178956970})
         args = proc._build_ocrmypdf_args()
-        assert args["max_image_mpixels"] == 178
+        assert args["max_image_mpixels"] == 179  # round(178.957) == 179
+
+    def test_max_image_pixels_below_one_megapixel_omitted(self):
+        """Sub-megapixel limits should be ignored, not rounded down to 0."""
+        proc = self._make_processor({"max_image_pixels": 500_000})
+        args = proc._build_ocrmypdf_args()
+        assert "max_image_mpixels" not in args
+
+    def test_max_image_pixels_zero_omitted(self):
+        """Zero/None limits should be ignored entirely."""
+        proc = self._make_processor({"max_image_pixels": 0})
+        args = proc._build_ocrmypdf_args()
+        assert "max_image_mpixels" not in args
 
     def test_pages_included_when_positive(self):
         """pages should be included when > 0."""

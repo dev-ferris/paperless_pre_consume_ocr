@@ -4,7 +4,7 @@ from pathlib import Path
 from PIL import Image
 
 from imageconverter import ImageConverter
-from exceptions import FileProcessingError
+from exceptions import FileNotSupported, FileProcessingError
 
 
 class TestImageConverterInit:
@@ -24,20 +24,20 @@ class TestImageConverterInit:
         ImageConverter(src, dest)
         assert dest.exists()
 
-    def test_supported_format_detected(self, tmp_path):
-        """Should detect supported image formats."""
+    def test_supported_formats_construct(self, tmp_path):
+        """Construction should succeed for every supported image format."""
         for ext in [".jpg", ".jpeg", ".png", ".tiff", ".bmp", ".webp"]:
             src = tmp_path / f"test{ext}"
             src.touch()
-            converter = ImageConverter(src, tmp_path)
-            assert converter.is_image is True
+            # Should not raise
+            ImageConverter(src, tmp_path)
 
-    def test_unsupported_format_detected(self, tmp_path):
-        """Should detect unsupported formats."""
+    def test_unsupported_format_raises(self, tmp_path):
+        """Construction should raise FileNotSupported for non-image formats."""
         src = tmp_path / "test.pdf"
         src.touch()
-        converter = ImageConverter(src, tmp_path)
-        assert converter.is_image is False
+        with pytest.raises(FileNotSupported, match="Unsupported image format"):
+            ImageConverter(src, tmp_path)
 
 
 class TestGetSaveFormat:
@@ -141,14 +141,6 @@ class TestConvertToRgb:
 
 class TestConvertToPdf:
     """Tests for ImageConverter.convert_to_pdf."""
-
-    def test_non_image_returns_original(self, tmp_path):
-        """Non-image files should be returned as-is."""
-        src = tmp_path / "test.pdf"
-        src.touch()
-        converter = ImageConverter(src, tmp_path)
-        result = converter.convert_to_pdf()
-        assert result == src
 
     @patch("imageconverter.img2pdf")
     def test_convert_jpg_to_pdf(self, mock_img2pdf, tmp_path):

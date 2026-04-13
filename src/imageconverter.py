@@ -5,7 +5,7 @@ from typing import Optional
 from PIL import Image, ImageOps, ImageEnhance
 import img2pdf
 
-from exceptions import FileProcessingError
+from exceptions import FileNotSupported, FileProcessingError
 from logger import get_logger
 
 logger = get_logger(__name__)
@@ -39,10 +39,14 @@ class ImageConverter:
         if not self.file_path.exists():
             raise FileNotFoundError(f"Source file does not exist: {self.file_path}")
 
+        if self.file_path.suffix.lower() not in self.SUPPORTED_FORMATS:
+            raise FileNotSupported(
+                f"Unsupported image format for {self.file_path}: "
+                f"{self.file_path.suffix}"
+            )
+
         if not self.destination_folder.exists():
             self.destination_folder.mkdir(parents=True, exist_ok=True)
-
-        self.is_image = self.file_path.suffix.lower() in self.SUPPORTED_FORMATS
 
     def _apply_orientation(self, img: Image.Image) -> Image.Image:
         """Apply orientation based on EXIF data if available."""
@@ -157,10 +161,6 @@ class ImageConverter:
 
     def convert_to_pdf(self) -> Path:
         """Convert image file to PDF with enhanced error handling and optimization."""
-        if not self.is_image:
-            logger.info(f"File is not a supported image format: {self.file_path}")
-            return self.file_path
-
         temp_pdf_path = None
 
         try:

@@ -15,6 +15,7 @@ import img2pdf
 import pytest
 from PIL import Image, ImageDraw, ImageFont
 
+from exceptions import FileNotSupported
 from imageconverter import ImageConverter
 from ocrprocessor import OCRProcessor
 from pdfprocessor import PDFProcessor
@@ -110,12 +111,11 @@ class TestImageConversionIntegration:
         assert pdf.stat().st_size > 0
         assert pdf.read_bytes()[:5] == b"%PDF-"
 
-    def test_unsupported_format_returns_original(self, tmp_path: Path, consume_dir: Path):
+    def test_unsupported_format_raises(self, tmp_path: Path, consume_dir: Path):
         weird = tmp_path / "note.txt"
         weird.write_text("not an image")
-        converter = ImageConverter(weird, consume_dir)
-        result = converter.convert_to_pdf()
-        assert result == weird
+        with pytest.raises(FileNotSupported):
+            ImageConverter(weird, consume_dir)
 
 
 class TestOCRIntegration:

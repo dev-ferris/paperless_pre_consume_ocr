@@ -78,8 +78,15 @@ class OCRProcessor:
         if configs['mode'] and configs['mode'] in self.MODE_MAPPING:
             args[self.MODE_MAPPING[configs['mode']]] = True
 
-        if configs['max_image_pixels'] and configs['max_image_pixels'] > 0:
-            args['max_image_mpixels'] = int(configs['max_image_pixels'] / 1_000_000.0)
+        # Convert max_image_pixels (px) to ocrmypdf's max_image_mpixels (Mpx).
+        # Only forward when the requested limit is at least 1 Mpx; smaller
+        # values would round down to 0 which ocrmypdf interprets as
+        # "unlimited" — almost certainly not what the user meant. Below
+        # 1 Mpx we fall back to ocrmypdf's own default by leaving the
+        # argument unset.
+        max_pixels = configs['max_image_pixels']
+        if max_pixels and max_pixels >= 1_000_000:
+            args['max_image_mpixels'] = max(1, round(max_pixels / 1_000_000))
 
         if configs['user_args'] and isinstance(configs['user_args'], dict):
             args.update(configs['user_args'])

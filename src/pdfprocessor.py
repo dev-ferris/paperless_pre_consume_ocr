@@ -1,7 +1,7 @@
 import re
 import pikepdf
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 from pdfminer.high_level import extract_text
 
 from logger import get_logger
@@ -48,8 +48,15 @@ class PDFProcessor:
             return False
 
     @staticmethod
-    def get_metadata(file_path: Path) -> Optional[Dict[str, str]]:
-        """Extract metadata from PDF file."""
+    def get_metadata(file_path: Path) -> Optional[Dict[str, Any]]:
+        """
+        Extract metadata from a PDF file.
+
+        Returns a dict mixing built-in keys (``page_count`` int,
+        ``pdf_version`` str, ``encrypted`` bool, ``file_size`` int,
+        ``modified_time`` float) with PDF docinfo entries (string keys
+        and string values), or ``None`` if the file cannot be read.
+        """
         if not file_path.exists():
             logger.error(f"File {file_path} does not exist")
             return None
