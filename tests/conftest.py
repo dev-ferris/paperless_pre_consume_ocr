@@ -1,16 +1,14 @@
 import sys
-from pathlib import Path
 from unittest.mock import MagicMock
 
-# Ensure src/ is on the path for imports
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-
-# Mock heavy external dependencies that may not be fully available in test environments.
-# These modules (ocrmypdf, pdfminer, pikepdf, psycopg) require native libraries
-# (cryptography, cffi, etc.) that may not be present during CI or lightweight testing.
-# The actual integration with these libraries is tested via integration tests.
-
-_MOCK_MODULES = [
+# Heavy external dependencies that are required by the source modules.
+# In a full CI environment (with system libraries like tesseract, ghostscript,
+# qpdf, libcrypto, etc.), these import cleanly and the real implementations
+# are used — required by the integration tests.
+# In a lightweight environment where the native libraries are missing, we
+# fall back to MagicMock stubs so the unit tests (which patch behaviour
+# explicitly) can still run.
+_OPTIONAL_MODULES = [
     "ocrmypdf",
     "pdfminer",
     "pdfminer.high_level",
@@ -26,6 +24,13 @@ _MOCK_MODULES = [
     "psycopg.rows",
 ]
 
-for mod_name in _MOCK_MODULES:
-    if mod_name not in sys.modules:
+for mod_name in _OPTIONAL_MODULES:
+    if mod_name in sys.modules:
+        continue
+    try:
+        __import__(mod_name)
+    except BaseException:
+        # Use BaseException to also catch native panics (e.g. pyo3
+        # PanicException raised when cryptography's rust bindings fail
+        # to load in lightweight environments).
         sys.modules[mod_name] = MagicMock()

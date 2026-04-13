@@ -1,0 +1,79 @@
+# Example docker-compose.yml that wires the pre-consume OCR script
+# into a Paperless-NGX deployment. Strip the comments and adapt the
+# secrets, ports and volume paths to your environment.
+#
+# Layout assumed:
+#   ./paperless_pre_consume_ocr/   <-- this repo, cloned next to the compose file
+#   ./consume/                     <-- consume folder
+#   ./data/                        <-- paperless data
+#   ./media/                       <-- paperless media
+#
+# Build the custom image first (it installs the pre-consume OCR package
+# into the upstream paperless-ngx image):
+#   docker compose build
+# then start everything:
+#   docker compose up -d
+
+services:
+  broker:
+    image: docker.io/library/redis:7
+    restart: unless-stopped
+    volumes:
+      - redis:/data
+
+  db:
+    image: docker.io/library/postgres:16
+    restart: unless-stopped
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: paperless
+      POSTGRES_USER: paperless
+      POSTGRES_PASSWORD: paperless
+
+  webserver:
+    # Custom image — the upstream paperless-ngx image with the
+    # paperless-pre-consume-ocr Python package installed.
+    build:
+      context: ./paperless_pre_consume_ocr
+      dockerfile: examples/docker/Dockerfile
+    image: paperless-with-pre-consume-ocr
+    restart: unless-stopped
+    depends_on:
+      - db
+      - broker
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "-S", "--max-time", "2", "http://localhost:8000"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    volumes:
+      - ./data:/usr/src/paperless/data
+      - ./media:/usr/src/paperless/media
+      - ./consume:/usr/src/paperless/consume
+    environment:
+      # --- Standard Paperless-NGX configuration ----------------------
+      PAPERLESS_REDIS: redis://broker:6379
+      PAPERLESS_DBHOST: db
+      PAPERLESS_DBPORT: 5432
+      PAPERLESS_DBNAME: paperless
+      PAPERLESS_DBUSER: paperless
+      PAPERLESS_DBPW: paperless
+      PAPERLESS_URL: http://localhost:8000
+
+      # --- Pre-consume OCR hook --------------------------------------
+      # The pip install above puts this console script on PATH.
+      PAPERLESS_PRE_CONSUME_SCRIPT: /usr/local/bin/paperless-pre-consume-ocr
+
+      # The original PDF is now searchable, so don't write the
+      # additional archive copy.
+      PAPERLESS_OCR_SKIP_ARCHIVE_FILE: with_text
+
+      # Optional: bump the script's log verbosity for debugging.
+      # PAPERLESS_PRE_CONSUME_LOG_LEVEL: DEBUG
+
+volumes:
+  pgdata:
+  redis:

@@ -1,11 +1,13 @@
 import os
 from functools import cached_property
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
+
 import psycopg
 from psycopg.rows import dict_row
 
-from logger import get_logger
+from .exceptions import DatabaseError
+from .logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -14,15 +16,15 @@ class PaperlessConfig:
     """Database configuration for retrieving OCR settings from Paperless-NGX."""
 
     __DEFAULT_OCR_CONFIG = {
-        'language': 'deu+eng',
-        'mode': 'skip',
-        'image_dpi': 300,
-        'output_type': 'pdf',
-        'deskew': True,
-        'rotate_pages': True,
-        'rotate_pages_threshold': 8.0,
-        'color_conversion_strategy': 'LeaveColorUnchanged',
-        'max_image_pixels': 178956970,  # Default ocrmypdf limit
+        "language": "deu+eng",
+        "mode": "skip",
+        "image_dpi": 300,
+        "output_type": "pdf",
+        "deskew": True,
+        "rotate_pages": True,
+        "rotate_pages_threshold": 8.0,
+        "color_conversion_strategy": "LeaveColorUnchanged",
+        "max_image_pixels": 178956970,  # Default ocrmypdf limit
     }
 
     def __init__(self):
@@ -35,39 +37,53 @@ class PaperlessConfig:
         if not self.host:
             raise ValueError("PAPERLESS_DBHOST environment variable is required")
 
-    def get_ocr_config(self) -> Dict[str, Any]:
-        """Retrieve OCR configuration from database."""
+    def get_ocr_config(self) -> dict[str, Any]:
+        """
+        Retrieve OCR configuration from the Paperless database, merged on
+        top of the built-in defaults.
+
+        Raises:
+            DatabaseError: if the database cannot be reached or the query
+                fails. Callers are expected to handle this — silently
+                falling back to defaults would mask broken setups.
+        """
+        config: dict[str, Any] = dict(self.__DEFAULT_OCR_CONFIG)
+
+        conn_str = (
+            f"host={self.host} port={self.port} dbname={self.name} "
+            f"user={self.user} password={self.password} "
+            f"connect_timeout=5"
+        )
+
+        logger.info(
+            f"Connecting to database ({self.name}) at {self.host}:{self.port} as {self.user}"
+        )
+
         try:
-            conn_str = (
-                f"host={self.host} port={self.port} dbname={self.name} "
-                f"user={self.user} password={self.password}"
-            )
-
-            logger.info(
-                f"Connecting to database ({self.name}) at {self.host}:{self.port} as {self.user}"
-            )
-
             with psycopg.connect(conn_str, row_factory=dict_row) as conn:
                 with conn.cursor() as cur:
                     cur.execute(
                         "SELECT * FROM paperless_applicationconfiguration WHERE id = %s;",
                         (1,),
                     )
-
                     result = cur.fetchone()
-                    if result:
-                        logger.info("OCR configuration loaded from database")
-                        return dict(result)
-                    else:
-                        logger.warning(
-                            "No OCR configuration found in database, using defaults"
-                        )
-                        return self.__DEFAULT_OCR_CONFIG
+        except psycopg.Error as e:
+            raise DatabaseError(
+                f"Failed to read OCR configuration from Paperless database: {e}"
+            ) from e
 
-        except Exception as e:
-            logger.error(f"Database connection failed: {e}")
-            logger.info("Using default OCR configuration")
-            return self.__DEFAULT_OCR_CONFIG
+        if not result:
+            logger.warning("No OCR configuration row found in database, using defaults")
+            return config
+
+        # Merge: defaults are the baseline, DB values override but NULLs
+        # from the DB are ignored so they don't blank out a default.
+        db_overrides = {k: v for k, v in dict(result).items() if v is not None}
+        config.update(db_overrides)
+        logger.info(
+            f"OCR configuration loaded from database ({len(db_overrides)} fields override defaults)"
+        )
+        return config
 
 
 class PaperlessPaths:
@@ -84,14 +100,10 @@ class PaperlessPaths:
         source_path = os.environ.get("DOCUMENT_SOURCE_PATH")
         self.source = Path(source_path) if source_path else None
 
-        self.consume = Path(
-            os.environ.get("DOCUMENT_CONSUME_PATH", "/usr/src/paperless/consume")
-        )
+        self.consume = Path(os.environ.get("DOCUMENT_CONSUME_PATH", "/usr/src/paperless/consume"))
 
         if not self.working.exists():
-            raise FileNotFoundError(
-                f"Document file does not exist: {self.working}"
-            )
+            raise FileNotFoundError(f"Document file does not exist: {self.working}")
 
 
 class PaperlessEnvironment:

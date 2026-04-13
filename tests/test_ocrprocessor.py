@@ -1,9 +1,10 @@
-import pytest
-from unittest.mock import patch, MagicMock
 from pathlib import Path
+from unittest.mock import patch
 
-from ocrprocessor import OCRProcessor
-from exceptions import FileProcessingError
+import pytest
+
+from paperless_pre_consume_ocr.exceptions import FileProcessingError
+from paperless_pre_consume_ocr.ocr import OCRProcessor
 
 
 class TestBuildOcrmypdfArgs:
@@ -43,10 +44,22 @@ class TestBuildOcrmypdfArgs:
         assert args.get("redo_ocr") is True
 
     def test_max_image_pixels_conversion(self):
-        """max_image_pixels should be converted to megapixels."""
+        """max_image_pixels should be rounded to megapixels."""
         proc = self._make_processor({"max_image_pixels": 178956970})
         args = proc._build_ocrmypdf_args()
-        assert args["max_image_mpixels"] == 178
+        assert args["max_image_mpixels"] == 179  # round(178.957) == 179
+
+    def test_max_image_pixels_below_one_megapixel_omitted(self):
+        """Sub-megapixel limits should be ignored, not rounded down to 0."""
+        proc = self._make_processor({"max_image_pixels": 500_000})
+        args = proc._build_ocrmypdf_args()
+        assert "max_image_mpixels" not in args
+
+    def test_max_image_pixels_zero_omitted(self):
+        """Zero/None limits should be ignored entirely."""
+        proc = self._make_processor({"max_image_pixels": 0})
+        args = proc._build_ocrmypdf_args()
+        assert "max_image_mpixels" not in args
 
     def test_pages_included_when_positive(self):
         """pages should be included when > 0."""
@@ -92,14 +105,14 @@ class TestShouldPerformOcr:
         proc = self._make_processor({"mode": "force"})
         assert proc._should_perform_ocr() is True
 
-    @patch("ocrprocessor.PDFProcessor")
+    @patch("paperless_pre_consume_ocr.ocr.PDFProcessor")
     def test_no_text_returns_true(self, mock_pdf):
         """Should return True when PDF has no text."""
         mock_pdf.has_text.return_value = False
         proc = self._make_processor({"mode": "skip"})
         assert proc._should_perform_ocr() is True
 
-    @patch("ocrprocessor.PDFProcessor")
+    @patch("paperless_pre_consume_ocr.ocr.PDFProcessor")
     def test_already_ocrd_skip_mode_returns_false(self, mock_pdf):
         """Should return False when already OCR'd and mode is skip."""
         mock_pdf.has_text.return_value = True
@@ -107,7 +120,7 @@ class TestShouldPerformOcr:
         proc = self._make_processor({"mode": "skip"})
         assert proc._should_perform_ocr() is False
 
-    @patch("ocrprocessor.PDFProcessor")
+    @patch("paperless_pre_consume_ocr.ocr.PDFProcessor")
     def test_already_ocrd_redo_mode_returns_true(self, mock_pdf):
         """Should return True when already OCR'd and mode is redo."""
         mock_pdf.has_text.return_value = True
@@ -115,18 +128,16 @@ class TestShouldPerformOcr:
         proc = self._make_processor({"mode": "redo"})
         assert proc._should_perform_ocr() is True
 
-    @patch("ocrprocessor.PDFProcessor")
+    @patch("paperless_pre_consume_ocr.ocr.PDFProcessor")
     def test_scanner_signature_returns_true(self, mock_pdf):
         """Should return True when scanner signature found in metadata."""
         mock_pdf.has_text.return_value = True
         mock_pdf.check_metadata_pattern.return_value = False
-        mock_pdf.get_metadata.return_value = {
-            "/Creator": "Canon Scanner v2.0"
-        }
+        mock_pdf.get_metadata.return_value = {"/Creator": "Canon Scanner v2.0"}
         proc = self._make_processor({"mode": "skip"})
         assert proc._should_perform_ocr() is True
 
-    @patch("ocrprocessor.PDFProcessor")
+    @patch("paperless_pre_consume_ocr.ocr.PDFProcessor")
     def test_text_pdf_no_scanner_returns_false(self, mock_pdf):
         """Should return False for a normal text PDF without scanner signatures."""
         mock_pdf.has_text.return_value = True
@@ -142,7 +153,7 @@ class TestShouldPerformOcr:
 class TestProcess:
     """Tests for OCRProcessor.process."""
 
-    @patch("ocrprocessor.PDFProcessor")
+    @patch("paperless_pre_consume_ocr.ocr.PDFProcessor")
     def test_process_skips_when_not_needed(self, mock_pdf):
         """Should return file_path without OCR when not needed."""
         mock_pdf.has_text.return_value = True
@@ -152,8 +163,8 @@ class TestProcess:
         result = proc.process()
         assert result == Path("/tmp/test.pdf")
 
-    @patch("ocrprocessor.ocrmypdf")
-    @patch("ocrprocessor.PDFProcessor")
+    @patch("paperless_pre_consume_ocr.ocr.ocrmypdf")
+    @patch("paperless_pre_consume_ocr.ocr.PDFProcessor")
     def test_process_runs_ocr_when_needed(self, mock_pdf, mock_ocrmypdf, tmp_path):
         """Should call ocrmypdf.ocr when OCR is needed."""
         test_file = tmp_path / "test.pdf"
@@ -167,8 +178,8 @@ class TestProcess:
         mock_ocrmypdf.ocr.assert_called_once()
         assert result == test_file
 
-    @patch("ocrprocessor.ocrmypdf")
-    @patch("ocrprocessor.PDFProcessor")
+    @patch("paperless_pre_consume_ocr.ocr.ocrmypdf")
+    @patch("paperless_pre_consume_ocr.ocr.PDFProcessor")
     def test_process_removes_image_dpi_for_pdf(self, mock_pdf, mock_ocrmypdf, tmp_path):
         """Should not pass image_dpi to ocrmypdf for PDF files."""
         test_file = tmp_path / "test.pdf"
@@ -182,8 +193,8 @@ class TestProcess:
         call_kwargs = mock_ocrmypdf.ocr.call_args[1]
         assert "image_dpi" not in call_kwargs
 
-    @patch("ocrprocessor.ocrmypdf")
-    @patch("ocrprocessor.PDFProcessor")
+    @patch("paperless_pre_consume_ocr.ocr.ocrmypdf")
+    @patch("paperless_pre_consume_ocr.ocr.PDFProcessor")
     def test_process_raises_on_empty_output(self, mock_pdf, mock_ocrmypdf, tmp_path):
         """Should raise FileProcessingError if output file is empty after OCR."""
         test_file = tmp_path / "test.pdf"
@@ -192,7 +203,7 @@ class TestProcess:
         mock_pdf.has_text.return_value = False
 
         # Simulate ocrmypdf emptying the file
-        def mock_ocr(**kwargs):
+        def mock_ocr(*args, **kwargs):
             test_file.write_bytes(b"")
 
         mock_ocrmypdf.ocr.side_effect = mock_ocr
