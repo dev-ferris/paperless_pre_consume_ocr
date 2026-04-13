@@ -3,8 +3,8 @@ from unittest.mock import patch
 import pytest
 from PIL import Image
 
-from exceptions import FileNotSupported, FileProcessingError
-from imageconverter import ImageConverter
+from paperless_pre_consume_ocr.exceptions import FileNotSupported, FileProcessingError
+from paperless_pre_consume_ocr.image_converter import ImageConverter
 
 
 class TestImageConverterInit:
@@ -142,7 +142,7 @@ class TestConvertToRgb:
 class TestConvertToPdf:
     """Tests for ImageConverter.convert_to_pdf."""
 
-    @patch("imageconverter.img2pdf")
+    @patch("paperless_pre_consume_ocr.image_converter.img2pdf")
     def test_convert_jpg_to_pdf(self, mock_img2pdf, tmp_path):
         """Should convert a JPEG image to PDF."""
         src = tmp_path / "test.jpg"
@@ -166,7 +166,7 @@ class TestConvertToPdf:
         assert result.stat().st_size > 0
         mock_img2pdf.convert.assert_called_once()
 
-    @patch("imageconverter.img2pdf")
+    @patch("paperless_pre_consume_ocr.image_converter.img2pdf")
     def test_convert_png_to_pdf(self, mock_img2pdf, tmp_path):
         """Should convert a PNG image to PDF."""
         src = tmp_path / "test.png"

@@ -5,8 +5,8 @@ from pathlib import Path
 import img2pdf
 from PIL import Image, ImageEnhance, ImageOps
 
-from exceptions import FileNotSupported, FileProcessingError
-from logger import get_logger
+from .exceptions import FileNotSupported, FileProcessingError
+from .logger import get_logger
 
 logger = get_logger(__name__)
 

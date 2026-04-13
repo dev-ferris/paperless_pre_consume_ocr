@@ -8,7 +8,8 @@
 #   ./data/                        <-- paperless data
 #   ./media/                       <-- paperless media
 #
-# Build the custom image first:
+# Build the custom image first (it installs the pre-consume OCR package
+# into the upstream paperless-ngx image):
 #   docker compose build
 # then start everything:
 #   docker compose up -d
@@ -31,7 +32,8 @@ services:
       POSTGRES_PASSWORD: paperless
 
   webserver:
-    # Custom image — the upstream paperless-ngx image plus img2pdf + psycopg.
+    # Custom image — the upstream paperless-ngx image with the
+    # paperless-pre-consume-ocr Python package installed.
     build:
       context: ./paperless_pre_consume_ocr
       dockerfile: examples/docker/Dockerfile
@@ -51,9 +53,6 @@ services:
       - ./data:/usr/src/paperless/data
       - ./media:/usr/src/paperless/media
       - ./consume:/usr/src/paperless/consume
-      # Mount the WHOLE src/ folder, not just the entry point — the
-      # entry-point file imports its sibling modules.
-      - ./paperless_pre_consume_ocr/src:/usr/src/paperless/scripts:ro
     environment:
       # --- Standard Paperless-NGX configuration ----------------------
       PAPERLESS_REDIS: redis://broker:6379
@@ -65,8 +64,8 @@ services:
       PAPERLESS_URL: http://localhost:8000
 
       # --- Pre-consume OCR hook --------------------------------------
-      # Path to the entry point inside the container.
-      PAPERLESS_PRE_CONSUME_SCRIPT: /usr/src/paperless/scripts/paperless_pre_consume_ocr.py
+      # The pip install above puts this console script on PATH.
+      PAPERLESS_PRE_CONSUME_SCRIPT: /usr/local/bin/paperless-pre-consume-ocr
 
       # The original PDF is now searchable, so don't write the
       # additional archive copy.

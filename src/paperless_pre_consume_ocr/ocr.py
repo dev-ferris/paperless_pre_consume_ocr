@@ -5,9 +5,9 @@ from typing import Any
 
 import ocrmypdf
 
-from exceptions import FileProcessingError
-from logger import get_logger
-from pdfprocessor import PDFProcessor
+from .exceptions import FileProcessingError
+from .logger import get_logger
+from .pdf import PDFProcessor
 
 logger = get_logger(__name__)
 

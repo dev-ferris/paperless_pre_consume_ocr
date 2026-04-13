@@ -16,10 +16,10 @@ import img2pdf
 import pytest
 from PIL import Image, ImageDraw, ImageFont
 
-from exceptions import FileNotSupported
-from imageconverter import ImageConverter
-from ocrprocessor import OCRProcessor
-from pdfprocessor import PDFProcessor
+from paperless_pre_consume_ocr.exceptions import FileNotSupported
+from paperless_pre_consume_ocr.image_converter import ImageConverter
+from paperless_pre_consume_ocr.ocr import OCRProcessor
+from paperless_pre_consume_ocr.pdf import PDFProcessor
 
 SAMPLE_TEXT = "HELLO PAPERLESS"
 

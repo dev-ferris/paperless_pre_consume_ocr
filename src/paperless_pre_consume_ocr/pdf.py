@@ -5,7 +5,7 @@ from typing import Any
 import pikepdf
 from pdfminer.high_level import extract_text
 
-from logger import get_logger
+from .logger import get_logger
 
 logger = get_logger(__name__)
 

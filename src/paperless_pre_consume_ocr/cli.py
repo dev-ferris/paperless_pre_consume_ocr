@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
 """
-Paperless OCR Pre-Processing Script
+Paperless OCR Pre-Processing Script.
 
 Processes documents with OCR before Paperless-NGX consumption to ensure
 original documents are searchable without requiring archive files.
@@ -11,13 +10,12 @@ original image, so Paperless picks up the converted PDF instead.
 """
 
 import os
-import sys
 
-from exceptions import ConfigurationError, DatabaseError, FileNotSupported, FileProcessingError
-from imageconverter import ImageConverter
-from logger import get_logger, setup_logging
-from ocrprocessor import OCRProcessor
-from paperlessenvironment import PaperlessEnvironment
+from .environment import PaperlessEnvironment
+from .exceptions import ConfigurationError, DatabaseError, FileNotSupported, FileProcessingError
+from .image_converter import ImageConverter
+from .logger import get_logger, setup_logging
+from .ocr import OCRProcessor
 
 logger = get_logger(__name__)
 
@@ -94,7 +92,3 @@ def _handle_ocr_processing(env: PaperlessEnvironment) -> int:
 
     logger.info("OCR processing completed successfully")
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())

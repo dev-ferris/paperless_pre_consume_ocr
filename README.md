@@ -24,15 +24,21 @@ The result: only the **original + thumbnail** are stored, and the original is al
 
 ## Architecture
 
+The project is laid out as a regular Python package and installed via
+`pip`. Once installed, the console script `paperless-pre-consume-ocr`
+is on `PATH`.
+
 ```
-src/
-├── paperless_pre_consume_ocr.py  # Entry point
-├── paperlessenvironment.py       # Environment variables + DB config
-├── imageconverter.py             # Image → PDF conversion
-├── ocrprocessor.py               # OCR processing via ocrmypdf
-├── pdfprocessor.py               # PDF metadata & text extraction
-├── exceptions.py                 # Custom exceptions
-└── logger.py                     # Logging setup
+src/paperless_pre_consume_ocr/
+├── __init__.py
+├── __main__.py             # `python -m paperless_pre_consume_ocr` entry point
+├── cli.py                  # Console script (paperless-pre-consume-ocr)
+├── environment.py          # Environment variables + DB config
+├── image_converter.py      # Image → PDF conversion
+├── ocr.py                  # OCR processing via ocrmypdf
+├── pdf.py                  # PDF metadata & text extraction
+├── exceptions.py           # Custom exceptions
+└── logger.py               # Logging setup
 ```
 
 ### Processing flow
@@ -80,71 +86,64 @@ Images are processed in two phases:
 - Paperless-NGX
 - System dependencies: `tesseract-ocr`, `ghostscript`, `qpdf`, `unpaper` (required by `ocrmypdf`)
 
-### Python dependencies
+### Install the package
+
+From a clone of this repository:
 
 ```bash
-pip install -e .
+pip install .
 ```
 
-Or manually:
+This installs the runtime dependencies and exposes the
+`paperless-pre-consume-ocr` console script. It can also be invoked as a
+module:
 
 ```bash
-pip install ocrmypdf Pillow img2pdf pikepdf pdfminer.six "psycopg[binary]"
+python -m paperless_pre_consume_ocr
+```
+
+For development (tests, lint, type-check):
+
+```bash
+pip install -e ".[dev]"
 ```
 
 ## Configuration
 
 ### Hooking the script into Paperless-NGX
 
-Paperless-NGX runs a single executable file referenced by the
+Paperless-NGX runs a single executable referenced by the
 `PAPERLESS_PRE_CONSUME_SCRIPT` environment variable before each document
 is consumed. The steps below show how to wire this project into a
 typical Docker Compose deployment.
 
-#### 1. Make the source available inside the container
+#### 1. Build a custom Paperless image with the package installed
 
-Mount the `src/` directory of this repository into the Paperless
-container, e.g. at `/usr/src/paperless/scripts`:
-
-```yaml
-services:
-  webserver:
-    image: ghcr.io/paperless-ngx/paperless-ngx:latest
-    volumes:
-      - ./paperless_pre_consume_ocr/src:/usr/src/paperless/scripts:ro
-      - ./consume:/usr/src/paperless/consume
-      - ./data:/usr/src/paperless/data
-      - ./media:/usr/src/paperless/media
-```
-
-> The script imports its sibling modules (`ocrprocessor.py`,
-> `imageconverter.py`, …) via relative imports, so the **whole `src/`
-> folder** must be mounted — not just the entry-point file.
-
-#### 2. Install the Python dependencies inside the container
-
-Paperless-NGX already ships with `ocrmypdf`, `Pillow`, `pikepdf` and
-`pdfminer.six`. The only extras the script needs are `img2pdf` and
-`psycopg`. The cleanest way is a small custom image:
+The cleanest approach is to extend the upstream Paperless-NGX image and
+`pip install` this package into it. The package's runtime dependencies
+(`img2pdf`, `psycopg`, `ocrmypdf`, `Pillow`, `pikepdf`, `pdfminer.six`)
+are pulled in automatically.
 
 ```dockerfile
 FROM ghcr.io/paperless-ngx/paperless-ngx:latest
 
-RUN pip install --no-cache-dir img2pdf "psycopg[binary]"
+COPY . /tmp/paperless_pre_consume_ocr
+RUN pip install --no-cache-dir /tmp/paperless_pre_consume_ocr \
+    && rm -rf /tmp/paperless_pre_consume_ocr
 ```
 
-Alternatively you can install them at container start via a
-`command:` override, but a dedicated image is more reliable.
+This installs the `paperless-pre-consume-ocr` console script at
+`/usr/local/bin/paperless-pre-consume-ocr` inside the container.
 
-#### 3. Point Paperless at the script
+#### 2. Point Paperless at the script
 
 Add the following to the `environment:` block of the `webserver`
 service in `docker-compose.yml`:
 
 ```yaml
     environment:
-      # Path to the pre-consume script (inside the container)
-      PAPERLESS_PRE_CONSUME_SCRIPT: /usr/src/paperless/scripts/paperless_pre_consume_ocr.py
+      # The console script installed by pip
+      PAPERLESS_PRE_CONSUME_SCRIPT: /usr/local/bin/paperless-pre-consume-ocr
 
       # Skip writing the separate archive file — the original is now
       # already searchable, so the archive copy is redundant.
@@ -158,21 +157,12 @@ service in `docker-compose.yml`:
       PAPERLESS_DBNAME: paperless
       PAPERLESS_DBUSER: paperless
       PAPERLESS_DBPW: paperless
+
+      # Optional: bump the script's log verbosity for debugging.
+      # PAPERLESS_PRE_CONSUME_LOG_LEVEL: DEBUG
 ```
 
-#### 4. Make the entry point executable
-
-Paperless executes the script directly, so the entry-point file needs
-the executable bit set on the host:
-
-```bash
-chmod +x paperless_pre_consume_ocr/src/paperless_pre_consume_ocr.py
-```
-
-The shebang at the top of the file (`#!/usr/bin/env python3`) ensures
-it runs with the container's Python interpreter.
-
-#### 5. Restart and verify
+#### 3. Restart and verify
 
 ```bash
 docker compose up -d --build
@@ -224,10 +214,12 @@ Paperless-NGX sets these automatically when invoking the pre-consume script:
 
 ```bash
 pip install -e ".[dev]"
-pytest tests/
+pytest tests/ --ignore=tests/integration
 ```
 
-The test suite contains 70 unit tests and covers all modules.
+Integration tests (which exercise the real `ocrmypdf`/`tesseract`
+pipeline) live under `tests/integration/` and are skipped automatically
+when the binaries or native libraries are missing.
 
 ## License
 

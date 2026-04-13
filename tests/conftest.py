@@ -1,9 +1,5 @@
 import sys
-from pathlib import Path
 from unittest.mock import MagicMock
-
-# Ensure src/ is on the path for imports
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 # Heavy external dependencies that are required by the source modules.
 # In a full CI environment (with system libraries like tesseract, ghostscript,

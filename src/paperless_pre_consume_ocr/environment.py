@@ -6,8 +6,8 @@ from typing import Any
 import psycopg
 from psycopg.rows import dict_row
 
-from exceptions import DatabaseError
-from logger import get_logger
+from .exceptions import DatabaseError
+from .logger import get_logger
 
 logger = get_logger(__name__)
 

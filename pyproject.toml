@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "paperless-pre-consume-ocr"
 version = "1.0.0"
@@ -20,11 +24,16 @@ dev = [
     "mypy>=1.10",
 ]
 
+[project.scripts]
+paperless-pre-consume-ocr = "paperless_pre_consume_ocr.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
 addopts = [
-    "--cov=src",
+    "--cov=paperless_pre_consume_ocr",
     "--cov-report=term-missing",
     "--cov-report=xml",
 ]
@@ -32,7 +41,7 @@ addopts = [
 [tool.ruff]
 line-length = 100
 target-version = "py310"
-src = ["src"]
+src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = [

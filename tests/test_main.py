@@ -2,13 +2,13 @@ import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from paperless_pre_consume_ocr import EXIT_IMAGE_CONVERTED, main
+from paperless_pre_consume_ocr.cli import EXIT_IMAGE_CONVERTED, main
 
 
 class TestMain:
     """Tests for the main entry point."""
 
-    @patch("paperless_pre_consume_ocr.PaperlessEnvironment")
+    @patch("paperless_pre_consume_ocr.cli.PaperlessEnvironment")
     def test_unsupported_format_returns_ok(self, mock_env_cls):
         """Unsupported file format should return EX_OK."""
         mock_env = MagicMock()
@@ -18,7 +18,7 @@ class TestMain:
         result = main()
         assert result == os.EX_OK
 
-    @patch("paperless_pre_consume_ocr.PaperlessEnvironment")
+    @patch("paperless_pre_consume_ocr.cli.PaperlessEnvironment")
     def test_missing_working_path_returns_config_error(self, mock_env_cls):
         """Missing DOCUMENT_WORKING_PATH should return EX_CONFIG."""
         mock_env_cls.side_effect = ValueError("DOCUMENT_WORKING_PATH is required")
@@ -26,7 +26,7 @@ class TestMain:
         result = main()
         assert result == os.EX_CONFIG
 
-    @patch("paperless_pre_consume_ocr.PaperlessEnvironment")
+    @patch("paperless_pre_consume_ocr.cli.PaperlessEnvironment")
     def test_missing_file_returns_noinput(self, mock_env_cls):
         """Non-existent file should return EX_NOINPUT."""
         mock_env_cls.side_effect = FileNotFoundError("File not found")
@@ -34,8 +34,8 @@ class TestMain:
         result = main()
         assert result == os.EX_NOINPUT
 
-    @patch("paperless_pre_consume_ocr.OCRProcessor")
-    @patch("paperless_pre_consume_ocr.PaperlessEnvironment")
+    @patch("paperless_pre_consume_ocr.cli.OCRProcessor")
+    @patch("paperless_pre_consume_ocr.cli.PaperlessEnvironment")
     def test_pdf_triggers_ocr_processing(self, mock_env_cls, mock_ocr_cls):
         """PDF files should trigger OCR processing."""
         mock_env = MagicMock()
@@ -55,8 +55,8 @@ class TestMain:
         mock_ocr_cls.assert_called_once()
         mock_processor.process.assert_called_once()
 
-    @patch("paperless_pre_consume_ocr.ImageConverter")
-    @patch("paperless_pre_consume_ocr.PaperlessEnvironment")
+    @patch("paperless_pre_consume_ocr.cli.ImageConverter")
+    @patch("paperless_pre_consume_ocr.cli.PaperlessEnvironment")
     def test_image_triggers_conversion(self, mock_env_cls, mock_converter_cls):
         """Image files should trigger conversion and return EXIT_IMAGE_CONVERTED."""
         mock_env = MagicMock()
@@ -89,7 +89,7 @@ class TestMain:
         result = main()
         assert result == EXIT_IMAGE_CONVERTED
 
-    @patch("paperless_pre_consume_ocr.PaperlessEnvironment")
+    @patch("paperless_pre_consume_ocr.cli.PaperlessEnvironment")
     def test_unexpected_error_returns_3(self, mock_env_cls):
         """Unexpected errors should return exit code 3."""
         mock_env_cls.side_effect = RuntimeError("Something unexpected")

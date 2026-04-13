@@ -5,8 +5,12 @@ from unittest.mock import MagicMock, patch
 import psycopg
 import pytest
 
-from exceptions import DatabaseError
-from paperlessenvironment import PaperlessConfig, PaperlessEnvironment, PaperlessPaths
+from paperless_pre_consume_ocr.environment import (
+    PaperlessConfig,
+    PaperlessEnvironment,
+    PaperlessPaths,
+)
+from paperless_pre_consume_ocr.exceptions import DatabaseError
 
 
 class TestPaperlessConfig:
@@ -57,7 +61,7 @@ class TestPaperlessConfig:
             config = PaperlessConfig()
 
             # Mock psycopg.connect to capture the connection string
-            with patch("paperlessenvironment.psycopg") as mock_psycopg:
+            with patch("paperless_pre_consume_ocr.environment.psycopg") as mock_psycopg:
                 mock_conn = MagicMock()
                 mock_cursor = MagicMock()
                 mock_cursor.fetchone.return_value = None
@@ -80,7 +84,7 @@ class TestPaperlessConfig:
         with patch.dict(os.environ, {"PAPERLESS_DBHOST": "nonexistent"}, clear=True):
             config = PaperlessConfig()
 
-            with patch("paperlessenvironment.psycopg") as mock_psycopg:
+            with patch("paperless_pre_consume_ocr.environment.psycopg") as mock_psycopg:
                 mock_psycopg.Error = psycopg.Error
                 mock_psycopg.connect.side_effect = psycopg.Error("Connection refused")
                 with pytest.raises(DatabaseError, match="Failed to read OCR configuration"):
@@ -92,7 +96,7 @@ class TestPaperlessConfig:
         with patch.dict(os.environ, env, clear=True):
             config = PaperlessConfig()
 
-            with patch("paperlessenvironment.psycopg") as mock_psycopg:
+            with patch("paperless_pre_consume_ocr.environment.psycopg") as mock_psycopg:
                 mock_psycopg.Error = psycopg.Error
                 mock_conn = MagicMock()
                 mock_cursor = MagicMock()
@@ -115,7 +119,7 @@ class TestPaperlessConfig:
         with patch.dict(os.environ, env, clear=True):
             config = PaperlessConfig()
 
-            with patch("paperlessenvironment.psycopg") as mock_psycopg:
+            with patch("paperless_pre_consume_ocr.environment.psycopg") as mock_psycopg:
                 mock_psycopg.Error = psycopg.Error
                 mock_conn = MagicMock()
                 mock_cursor = MagicMock()
@@ -145,7 +149,7 @@ class TestPaperlessConfig:
         with patch.dict(os.environ, env, clear=True):
             config = PaperlessConfig()
 
-            with patch("paperlessenvironment.psycopg") as mock_psycopg:
+            with patch("paperless_pre_consume_ocr.environment.psycopg") as mock_psycopg:
                 mock_psycopg.Error = psycopg.Error
                 mock_conn = MagicMock()
                 mock_cursor = MagicMock()
