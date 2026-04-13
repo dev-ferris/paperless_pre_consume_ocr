@@ -16,7 +16,7 @@ from imageconverter import ImageConverter
 from ocrprocessor import OCRProcessor
 from paperlessenvironment import PaperlessEnvironment
 
-from logger import get_logger
+from logger import get_logger, setup_logging
 
 logger = get_logger(__name__)
 
@@ -27,6 +27,7 @@ EXIT_IMAGE_CONVERTED = 10
 
 def main() -> int:
     """Main execution function."""
+    setup_logging()
     logger.info("Paperless Pre-Consume: Starting OCR processing")
 
     try:
@@ -64,46 +65,36 @@ def _handle_image_conversion(env: PaperlessEnvironment) -> int:
     """Handle image to PDF conversion phase."""
     logger.info("=== IMAGE CONVERSION PHASE ===")
 
-    try:
-        converter = ImageConverter(env.paths.working, env.paths.consume)
-        pdf_path = converter.convert_to_pdf()
+    converter = ImageConverter(env.paths.working, env.paths.consume)
+    pdf_path = converter.convert_to_pdf()
 
-        if not pdf_path or not pdf_path.exists():
-            logger.error(f"PDF conversion failed - output file not found: {pdf_path}")
-            return 2
+    if not pdf_path or not pdf_path.exists():
+        raise FileProcessingError(
+            f"PDF conversion failed - output file not found: {pdf_path}"
+        )
 
-        logger.info(f"Image successfully converted to PDF: {pdf_path}")
-        logger.info("Exiting to allow Paperless to re-consume the PDF")
-        return EXIT_IMAGE_CONVERTED
-
-    except Exception as e:
-        logger.error(f"Image conversion failed: {e}")
-        raise FileProcessingError(f"Image conversion failed: {e}")
+    logger.info(f"Image successfully converted to PDF: {pdf_path}")
+    logger.info("Exiting to allow Paperless to re-consume the PDF")
+    return EXIT_IMAGE_CONVERTED
 
 
 def _handle_ocr_processing(env: PaperlessEnvironment) -> int:
     """Handle OCR processing phase."""
     logger.info("=== OCR PROCESSING PHASE ===")
 
-    try:
-        ocr_config = env.config.get_ocr_config()
+    ocr_config = env.config.get_ocr_config()
 
-        logger.info(f"Processing file: {env.paths.working}")
-        logger.debug(f"OCR configuration: {ocr_config}")
+    logger.info(f"Processing file: {env.paths.working}")
+    logger.debug(f"OCR configuration: {ocr_config}")
 
-        processor = OCRProcessor(env.paths.working, ocr_config)
-        result_path = processor.process()
+    processor = OCRProcessor(env.paths.working, ocr_config)
+    result_path = processor.process()
 
-        if result_path:
-            logger.info("OCR processing completed successfully")
-            return 0
-        else:
-            logger.error("OCR processing returned no result")
-            return 2
+    if not result_path:
+        raise FileProcessingError("OCR processing returned no result")
 
-    except Exception as e:
-        logger.error(f"OCR processing failed: {e}")
-        raise FileProcessingError(f"OCR processing failed: {e}")
+    logger.info("OCR processing completed successfully")
+    return 0
 
 
 if __name__ == "__main__":

@@ -204,7 +204,9 @@ class ImageConverter:
             raise
         except Exception as e:
             logger.error(f"Image conversion failed for {self.file_path}: {e}")
-            raise FileProcessingError(f"Could not convert image to PDF: {e}")
+            raise FileProcessingError(
+                f"Could not convert image to PDF: {e}"
+            ) from e
         finally:
             self._cleanup_temp_files(temp_pdf_path)
 

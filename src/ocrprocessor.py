@@ -167,4 +167,4 @@ class OCRProcessor:
             raise
         except Exception as e:
             logger.error(f"OCR processing failed: {e}")
-            raise FileProcessingError(f"OCR processing failed: {e}")
+            raise FileProcessingError(f"OCR processing failed: {e}") from e

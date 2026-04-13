@@ -3,6 +3,9 @@ import pytest
 from unittest.mock import patch, MagicMock
 from pathlib import Path
 
+import psycopg
+
+from exceptions import DatabaseError
 from paperlessenvironment import PaperlessConfig, PaperlessPaths, PaperlessEnvironment
 
 
@@ -72,18 +75,91 @@ class TestPaperlessConfig:
                 # Ensure "dbname=paperless user=paperless" has a space
                 assert "dbname=paperless user=paperless" in conn_str
 
-    def test_get_ocr_config_returns_defaults_on_db_error(self):
-        """Should return default config when database connection fails."""
+    def test_get_ocr_config_raises_database_error_on_failure(self):
+        """A failing DB connection should raise DatabaseError, not silently fall back."""
         with patch.dict(os.environ, {"PAPERLESS_DBHOST": "nonexistent"}, clear=True):
             config = PaperlessConfig()
 
             with patch("paperlessenvironment.psycopg") as mock_psycopg:
-                mock_psycopg.connect.side_effect = Exception("Connection refused")
-                result = config.get_ocr_config()
+                mock_psycopg.Error = psycopg.Error
+                mock_psycopg.connect.side_effect = psycopg.Error("Connection refused")
+                with pytest.raises(DatabaseError, match="Failed to read OCR configuration"):
+                    config.get_ocr_config()
 
+    def test_get_ocr_config_returns_defaults_when_no_row(self):
+        """Should return defaults when the configuration row is missing."""
+        env = {"PAPERLESS_DBHOST": "localhost"}
+        with patch.dict(os.environ, env, clear=True):
+            config = PaperlessConfig()
+
+            with patch("paperlessenvironment.psycopg") as mock_psycopg:
+                mock_psycopg.Error = psycopg.Error
+                mock_conn = MagicMock()
+                mock_cursor = MagicMock()
+                mock_cursor.fetchone.return_value = None
+                mock_conn.__enter__ = MagicMock(return_value=mock_conn)
+                mock_conn.__exit__ = MagicMock(return_value=False)
+                mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+                mock_cursor.__exit__ = MagicMock(return_value=False)
+                mock_conn.cursor.return_value = mock_cursor
+                mock_psycopg.connect.return_value = mock_conn
+
+                result = config.get_ocr_config()
                 assert result['language'] == 'deu+eng'
                 assert result['mode'] == 'skip'
                 assert result['image_dpi'] == 300
+
+    def test_get_ocr_config_merges_db_values_with_defaults(self):
+        """DB values should override defaults; NULL DB values should not blank them."""
+        env = {"PAPERLESS_DBHOST": "localhost"}
+        with patch.dict(os.environ, env, clear=True):
+            config = PaperlessConfig()
+
+            with patch("paperlessenvironment.psycopg") as mock_psycopg:
+                mock_psycopg.Error = psycopg.Error
+                mock_conn = MagicMock()
+                mock_cursor = MagicMock()
+                # Mode overridden, image_dpi NULL → default kept,
+                # language overridden.
+                mock_cursor.fetchone.return_value = {
+                    "mode": "force",
+                    "image_dpi": None,
+                    "language": "fra",
+                }
+                mock_conn.__enter__ = MagicMock(return_value=mock_conn)
+                mock_conn.__exit__ = MagicMock(return_value=False)
+                mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+                mock_cursor.__exit__ = MagicMock(return_value=False)
+                mock_conn.cursor.return_value = mock_cursor
+                mock_psycopg.connect.return_value = mock_conn
+
+                result = config.get_ocr_config()
+                assert result['mode'] == 'force'         # overridden
+                assert result['language'] == 'fra'       # overridden
+                assert result['image_dpi'] == 300        # NULL ignored, default
+                assert result['deskew'] is True          # default preserved
+
+    def test_get_ocr_config_uses_connect_timeout(self):
+        """Connection string must include connect_timeout to avoid hangs."""
+        env = {"PAPERLESS_DBHOST": "localhost"}
+        with patch.dict(os.environ, env, clear=True):
+            config = PaperlessConfig()
+
+            with patch("paperlessenvironment.psycopg") as mock_psycopg:
+                mock_psycopg.Error = psycopg.Error
+                mock_conn = MagicMock()
+                mock_cursor = MagicMock()
+                mock_cursor.fetchone.return_value = None
+                mock_conn.__enter__ = MagicMock(return_value=mock_conn)
+                mock_conn.__exit__ = MagicMock(return_value=False)
+                mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+                mock_cursor.__exit__ = MagicMock(return_value=False)
+                mock_conn.cursor.return_value = mock_cursor
+                mock_psycopg.connect.return_value = mock_conn
+
+                config.get_ocr_config()
+                conn_str = mock_psycopg.connect.call_args[0][0]
+                assert "connect_timeout=5" in conn_str
 
 
 class TestPaperlessPaths:
