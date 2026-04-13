@@ -12,6 +12,12 @@ on:
       - master
   workflow_dispatch:
 
+# Opt the JavaScript actions (checkout, setup-python) into Node.js 24
+# ahead of the June 2026 default switch, to silence the deprecation
+# warning for Node.js 20.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   test:
     name: Python ${{ matrix.python-version }}
