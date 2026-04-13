@@ -1,16 +1,17 @@
 """
 Integration tests that exercise the real image-to-PDF and OCR pipeline.
 
-These tests:
-  * Generate a synthetic image containing rendered text via Pillow.
-  * Convert it to a PDF using ImageConverter (real img2pdf).
-  * Run OCR on the resulting PDF using OCRProcessor (real ocrmypdf).
-  * Verify that the output PDF contains the expected text via PDFProcessor
-    (real pdfminer.six).
+These tests cover both supported input types end-to-end:
+  * **Image input**: a synthetic PNG/JPG with rendered text is converted
+    to a PDF via ImageConverter, then OCR'd via OCRProcessor.
+  * **Native PDF input**: a fresh image-only PDF (no text layer) is
+    built directly with img2pdf — independently of ImageConverter — and
+    handed straight to OCRProcessor / PDFProcessor.
 """
 import os
 from pathlib import Path
 
+import img2pdf
 import pytest
 from PIL import Image, ImageDraw, ImageFont
 
@@ -71,6 +72,20 @@ def text_jpg(tmp_path: Path) -> Path:
         img.convert("RGB").save(jpg_path, "JPEG", quality=95, dpi=(300, 300))
     src.unlink()
     return jpg_path
+
+
+@pytest.fixture
+def scan_pdf(tmp_path: Path) -> Path:
+    """
+    Build a native image-only PDF (no text layer) directly with img2pdf,
+    independently of ImageConverter. Simulates a freshly scanned document.
+    """
+    img_path = _create_text_image(tmp_path / "_scan_source.png")
+    pdf_path = tmp_path / "scan.pdf"
+    with open(pdf_path, "wb") as fh:
+        fh.write(img2pdf.convert(str(img_path)))
+    img_path.unlink()
+    return pdf_path
 
 
 class TestImageConversionIntegration:
@@ -159,6 +174,73 @@ class TestOCRIntegration:
         )
         result = second.process()
         assert result.exists()
+
+
+class TestNativePDFInput:
+    """OCR and text detection on a real PDF input (not produced by ImageConverter)."""
+
+    def test_scan_pdf_has_no_text_initially(self, scan_pdf: Path):
+        """A freshly scanned image-only PDF must not be reported as text-bearing."""
+        assert scan_pdf.exists()
+        assert scan_pdf.read_bytes()[:5] == b"%PDF-"
+        assert PDFProcessor.has_text(scan_pdf) is False
+
+    def test_ocr_processes_native_scan_pdf(self, scan_pdf: Path):
+        """OCRProcessor should add a text layer to a native scan PDF."""
+        size_before = scan_pdf.stat().st_size
+
+        processor = OCRProcessor(
+            scan_pdf,
+            {
+                "mode": "force",
+                "language": "eng",
+                "output_type": "pdf",
+            },
+        )
+        result = processor.process()
+
+        assert result == scan_pdf  # processed in place
+        assert result.exists()
+        assert result.stat().st_size >= size_before
+
+        # Text layer is now present
+        assert PDFProcessor.has_text(result) is True
+
+        from pdfminer.high_level import extract_text
+        extracted = extract_text(str(result)).upper()
+        assert "HELLO" in extracted or "PAPERLESS" in extracted
+
+    def test_ocr_skipped_on_native_pdf_already_processed(self, scan_pdf: Path):
+        """Running OCRProcessor twice with mode=skip must not re-OCR."""
+        # First pass: add text layer
+        OCRProcessor(
+            scan_pdf,
+            {"mode": "skip", "language": "eng", "output_type": "pdf"},
+        ).process()
+        assert PDFProcessor.has_text(scan_pdf) is True
+
+        # ocrmypdf metadata signature must be present after processing
+        assert PDFProcessor.check_metadata_pattern(
+            scan_pdf, r"Tesseract|ocrmypdf"
+        ) is True
+
+        # Second pass: should be a no-op
+        size_after_first = scan_pdf.stat().st_size
+        OCRProcessor(
+            scan_pdf,
+            {"mode": "skip", "language": "eng", "output_type": "pdf"},
+        ).process()
+        assert scan_pdf.exists()
+        # File should be unchanged (skip path returns early)
+        assert scan_pdf.stat().st_size == size_after_first
+
+    def test_pdfprocessor_metadata_on_native_pdf(self, scan_pdf: Path):
+        """PDFProcessor.get_metadata should return real metadata for a native PDF."""
+        meta = PDFProcessor.get_metadata(scan_pdf)
+        assert meta is not None
+        assert meta["page_count"] == 1
+        assert meta["pdf_version"]
+        assert meta["encrypted"] is False
 
 
 class TestEndToEndPipeline:
