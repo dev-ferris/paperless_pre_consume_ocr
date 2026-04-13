@@ -6,6 +6,7 @@ modules — not the MagicMock fallbacks installed by the parent conftest.
 If a real module cannot be imported, all integration tests are skipped
 at collection time.
 """
+
 import shutil
 import sys
 from unittest.mock import MagicMock

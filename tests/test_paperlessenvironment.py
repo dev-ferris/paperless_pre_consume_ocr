@@ -1,12 +1,12 @@
 import os
-import pytest
-from unittest.mock import patch, MagicMock
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import psycopg
+import pytest
 
 from exceptions import DatabaseError
-from paperlessenvironment import PaperlessConfig, PaperlessPaths, PaperlessEnvironment
+from paperlessenvironment import PaperlessConfig, PaperlessEnvironment, PaperlessPaths
 
 
 class TestPaperlessConfig:
@@ -105,9 +105,9 @@ class TestPaperlessConfig:
                 mock_psycopg.connect.return_value = mock_conn
 
                 result = config.get_ocr_config()
-                assert result['language'] == 'deu+eng'
-                assert result['mode'] == 'skip'
-                assert result['image_dpi'] == 300
+                assert result["language"] == "deu+eng"
+                assert result["mode"] == "skip"
+                assert result["image_dpi"] == 300
 
     def test_get_ocr_config_merges_db_values_with_defaults(self):
         """DB values should override defaults; NULL DB values should not blank them."""
@@ -134,10 +134,10 @@ class TestPaperlessConfig:
                 mock_psycopg.connect.return_value = mock_conn
 
                 result = config.get_ocr_config()
-                assert result['mode'] == 'force'         # overridden
-                assert result['language'] == 'fra'       # overridden
-                assert result['image_dpi'] == 300        # NULL ignored, default
-                assert result['deskew'] is True          # default preserved
+                assert result["mode"] == "force"  # overridden
+                assert result["language"] == "fra"  # overridden
+                assert result["image_dpi"] == 300  # NULL ignored, default
+                assert result["deskew"] is True  # default preserved
 
     def test_get_ocr_config_uses_connect_timeout(self):
         """Connection string must include connect_timeout to avoid hangs."""

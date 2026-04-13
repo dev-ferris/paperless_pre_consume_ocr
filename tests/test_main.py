@@ -1,9 +1,8 @@
 import os
-import pytest
-from unittest.mock import patch, MagicMock, PropertyMock
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
-from paperless_pre_consume_ocr import main, EXIT_IMAGE_CONVERTED
+from paperless_pre_consume_ocr import EXIT_IMAGE_CONVERTED, main
 
 
 class TestMain:
@@ -66,8 +65,19 @@ class TestMain:
 
         # Set SUPPORTED_FORMATS as real sets so `in` works correctly
         mock_converter_cls.SUPPORTED_FORMATS = {
-            ".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp",
-            ".gif", ".ico", ".pcx", ".ppm", ".pgm", ".pbm",
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".bmp",
+            ".tiff",
+            ".tif",
+            ".webp",
+            ".gif",
+            ".ico",
+            ".pcx",
+            ".ppm",
+            ".pgm",
+            ".pbm",
         }
 
         mock_converter = MagicMock()

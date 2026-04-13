@@ -1,6 +1,5 @@
-import pytest
-from unittest.mock import patch, MagicMock
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 from pdfprocessor import PDFProcessor
 
@@ -79,10 +78,10 @@ class TestGetMetadata:
         result = PDFProcessor.get_metadata(pdf_file)
 
         assert result is not None
-        assert result['page_count'] == 2
-        assert result['pdf_version'] == '1.4'
-        assert result['encrypted'] is False
-        assert result['/Creator'] == 'TestApp'
+        assert result["page_count"] == 2
+        assert result["pdf_version"] == "1.4"
+        assert result["encrypted"] is False
+        assert result["/Creator"] == "TestApp"
 
 
 class TestCheckMetadataPattern:
@@ -95,9 +94,10 @@ class TestCheckMetadataPattern:
             "/Creator": "Tesseract OCR",
             "/Producer": "ocrmypdf",
         }
-        assert PDFProcessor.check_metadata_pattern(
-            Path("/tmp/test.pdf"), r"Tesseract|ocrmypdf"
-        ) is True
+        assert (
+            PDFProcessor.check_metadata_pattern(Path("/tmp/test.pdf"), r"Tesseract|ocrmypdf")
+            is True
+        )
 
     @patch.object(PDFProcessor, "get_metadata")
     def test_pattern_not_found(self, mock_get_metadata):
@@ -106,14 +106,13 @@ class TestCheckMetadataPattern:
             "/Creator": "Microsoft Word",
             "/Producer": "macOS Quartz",
         }
-        assert PDFProcessor.check_metadata_pattern(
-            Path("/tmp/test.pdf"), r"Tesseract|ocrmypdf"
-        ) is False
+        assert (
+            PDFProcessor.check_metadata_pattern(Path("/tmp/test.pdf"), r"Tesseract|ocrmypdf")
+            is False
+        )
 
     @patch.object(PDFProcessor, "get_metadata")
     def test_no_metadata_returns_false(self, mock_get_metadata):
         """Should return False when metadata is None."""
         mock_get_metadata.return_value = None
-        assert PDFProcessor.check_metadata_pattern(
-            Path("/tmp/test.pdf"), r"Tesseract"
-        ) is False
+        assert PDFProcessor.check_metadata_pattern(Path("/tmp/test.pdf"), r"Tesseract") is False

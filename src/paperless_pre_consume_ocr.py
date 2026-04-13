@@ -9,14 +9,15 @@ Image files are first converted to PDF and placed in the consume folder.
 The script then exits with a non-zero code to abort consumption of the
 original image, so Paperless picks up the converted PDF instead.
 """
+
 import os
 import sys
-from exceptions import ConfigurationError, DatabaseError, FileProcessingError, FileNotSupported
+
+from exceptions import ConfigurationError, DatabaseError, FileNotSupported, FileProcessingError
 from imageconverter import ImageConverter
+from logger import get_logger, setup_logging
 from ocrprocessor import OCRProcessor
 from paperlessenvironment import PaperlessEnvironment
-
-from logger import get_logger, setup_logging
 
 logger = get_logger(__name__)
 
@@ -69,9 +70,7 @@ def _handle_image_conversion(env: PaperlessEnvironment) -> int:
     pdf_path = converter.convert_to_pdf()
 
     if not pdf_path or not pdf_path.exists():
-        raise FileProcessingError(
-            f"PDF conversion failed - output file not found: {pdf_path}"
-        )
+        raise FileProcessingError(f"PDF conversion failed - output file not found: {pdf_path}")
 
     logger.info(f"Image successfully converted to PDF: {pdf_path}")
     logger.info("Exiting to allow Paperless to re-consume the PDF")

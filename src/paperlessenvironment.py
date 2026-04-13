@@ -1,7 +1,8 @@
 import os
 from functools import cached_property
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
+
 import psycopg
 from psycopg.rows import dict_row
 
@@ -15,15 +16,15 @@ class PaperlessConfig:
     """Database configuration for retrieving OCR settings from Paperless-NGX."""
 
     __DEFAULT_OCR_CONFIG = {
-        'language': 'deu+eng',
-        'mode': 'skip',
-        'image_dpi': 300,
-        'output_type': 'pdf',
-        'deskew': True,
-        'rotate_pages': True,
-        'rotate_pages_threshold': 8.0,
-        'color_conversion_strategy': 'LeaveColorUnchanged',
-        'max_image_pixels': 178956970,  # Default ocrmypdf limit
+        "language": "deu+eng",
+        "mode": "skip",
+        "image_dpi": 300,
+        "output_type": "pdf",
+        "deskew": True,
+        "rotate_pages": True,
+        "rotate_pages_threshold": 8.0,
+        "color_conversion_strategy": "LeaveColorUnchanged",
+        "max_image_pixels": 178956970,  # Default ocrmypdf limit
     }
 
     def __init__(self):
@@ -36,7 +37,7 @@ class PaperlessConfig:
         if not self.host:
             raise ValueError("PAPERLESS_DBHOST environment variable is required")
 
-    def get_ocr_config(self) -> Dict[str, Any]:
+    def get_ocr_config(self) -> dict[str, Any]:
         """
         Retrieve OCR configuration from the Paperless database, merged on
         top of the built-in defaults.
@@ -46,7 +47,7 @@ class PaperlessConfig:
                 fails. Callers are expected to handle this — silently
                 falling back to defaults would mask broken setups.
         """
-        config: Dict[str, Any] = dict(self.__DEFAULT_OCR_CONFIG)
+        config: dict[str, Any] = dict(self.__DEFAULT_OCR_CONFIG)
 
         conn_str = (
             f"host={self.host} port={self.port} dbname={self.name} "
@@ -72,9 +73,7 @@ class PaperlessConfig:
             ) from e
 
         if not result:
-            logger.warning(
-                "No OCR configuration row found in database, using defaults"
-            )
+            logger.warning("No OCR configuration row found in database, using defaults")
             return config
 
         # Merge: defaults are the baseline, DB values override but NULLs
@@ -82,8 +81,7 @@ class PaperlessConfig:
         db_overrides = {k: v for k, v in dict(result).items() if v is not None}
         config.update(db_overrides)
         logger.info(
-            f"OCR configuration loaded from database "
-            f"({len(db_overrides)} fields override defaults)"
+            f"OCR configuration loaded from database ({len(db_overrides)} fields override defaults)"
         )
         return config
 
@@ -102,14 +100,10 @@ class PaperlessPaths:
         source_path = os.environ.get("DOCUMENT_SOURCE_PATH")
         self.source = Path(source_path) if source_path else None
 
-        self.consume = Path(
-            os.environ.get("DOCUMENT_CONSUME_PATH", "/usr/src/paperless/consume")
-        )
+        self.consume = Path(os.environ.get("DOCUMENT_CONSUME_PATH", "/usr/src/paperless/consume"))
 
         if not self.working.exists():
-            raise FileNotFoundError(
-                f"Document file does not exist: {self.working}"
-            )
+            raise FileNotFoundError(f"Document file does not exist: {self.working}")
 
 
 class PaperlessEnvironment:

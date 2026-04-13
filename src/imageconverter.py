@@ -1,9 +1,9 @@
 import shutil
 import uuid
 from pathlib import Path
-from typing import Optional
-from PIL import Image, ImageOps, ImageEnhance
+
 import img2pdf
+from PIL import Image, ImageEnhance, ImageOps
 
 from exceptions import FileNotSupported, FileProcessingError
 from logger import get_logger
@@ -15,23 +15,42 @@ class ImageConverter:
     """Handle image to PDF conversion with optimized error handling and resource management."""
 
     SUPPORTED_FORMATS = {
-        ".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp",
-        ".gif", ".ico", ".pcx", ".ppm", ".pgm", ".pbm",
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".bmp",
+        ".tiff",
+        ".tif",
+        ".webp",
+        ".gif",
+        ".ico",
+        ".pcx",
+        ".ppm",
+        ".pgm",
+        ".pbm",
     }
 
     # Formats that should be saved as PNG to preserve lossless quality
     LOSSLESS_FORMATS = {
-        ".png", ".bmp", ".tiff", ".tif", ".gif",
-        ".ico", ".pcx", ".ppm", ".pgm", ".pbm",
+        ".png",
+        ".bmp",
+        ".tiff",
+        ".tif",
+        ".gif",
+        ".ico",
+        ".pcx",
+        ".ppm",
+        ".pgm",
+        ".pbm",
     }
 
     QUALITY_SETTINGS = {
-        'high': {'dpi': 1200, 'quality': 100},
-        'medium': {'dpi': 200, 'quality': 85},
-        'low': {'dpi': 150, 'quality': 75},
+        "high": {"dpi": 1200, "quality": 100},
+        "medium": {"dpi": 200, "quality": 85},
+        "low": {"dpi": 150, "quality": 75},
     }
 
-    def __init__(self, file_path: Path, destination_folder: Path, quality: str = 'high'):
+    def __init__(self, file_path: Path, destination_folder: Path, quality: str = "high"):
         self.file_path = Path(file_path)
         self.destination_folder = Path(destination_folder)
         self.quality = quality
@@ -41,8 +60,7 @@ class ImageConverter:
 
         if self.file_path.suffix.lower() not in self.SUPPORTED_FORMATS:
             raise FileNotSupported(
-                f"Unsupported image format for {self.file_path}: "
-                f"{self.file_path.suffix}"
+                f"Unsupported image format for {self.file_path}: {self.file_path.suffix}"
             )
 
         if not self.destination_folder.exists():
@@ -53,23 +71,21 @@ class ImageConverter:
         try:
             return ImageOps.exif_transpose(img)
         except Exception as e:
-            logger.warning(
-                f"EXIF transpose failed, continuing without orientation correction: {e}"
-            )
+            logger.warning(f"EXIF transpose failed, continuing without orientation correction: {e}")
             return img
 
     def _remove_alpha_channel(self, img: Image.Image) -> Image.Image:
         """Remove alpha channel from image if present."""
         try:
-            if img.mode in ('RGBA', 'LA'):
+            if img.mode in ("RGBA", "LA"):
                 logger.debug(f"Removing alpha channel from image with mode: {img.mode}")
-                bg_mode = 'RGB' if img.mode == 'RGBA' else 'L'
-                bg_color = (255, 255, 255) if img.mode == 'RGBA' else 255
+                bg_mode = "RGB" if img.mode == "RGBA" else "L"
+                bg_color = (255, 255, 255) if img.mode == "RGBA" else 255
                 background = Image.new(bg_mode, img.size, bg_color)
                 background.paste(img, mask=img.split()[-1])
                 return background
-            elif img.mode == 'PA':
-                return img.convert('RGBA').convert('RGB')
+            elif img.mode == "PA":
+                return img.convert("RGBA").convert("RGB")
             return img
         except Exception as e:
             logger.error(f"Failed to remove alpha channel: {e}")
@@ -78,11 +94,11 @@ class ImageConverter:
     def _convert_image_to_rgb(self, img: Image.Image) -> Image.Image:
         """Convert image to RGB mode if necessary."""
         try:
-            if img.mode == 'L':
+            if img.mode == "L":
                 return img  # Grayscale is fine for OCR
-            if img.mode != 'RGB':
+            if img.mode != "RGB":
                 logger.info(f"Converting {img.mode} image to RGB")
-                return img.convert('RGB')
+                return img.convert("RGB")
             return img
         except Exception as e:
             logger.error(f"Image conversion to RGB failed: {e}")
@@ -94,11 +110,11 @@ class ImageConverter:
         """Resize image based on quality settings and max dimension."""
         try:
             quality_settings = self.QUALITY_SETTINGS.get(
-                self.quality, self.QUALITY_SETTINGS['medium']
+                self.quality, self.QUALITY_SETTINGS["medium"]
             )
-            target_dpi = quality_settings['dpi']
+            target_dpi = quality_settings["dpi"]
 
-            current_dpi = img.info.get('dpi', (72, 72))[0]
+            current_dpi = img.info.get("dpi", (72, 72))[0]
             scale_factor = target_dpi / current_dpi
 
             if abs(scale_factor - 1.0) > 0.1:
@@ -121,8 +137,8 @@ class ImageConverter:
     def _get_save_format(self, image_path: Path) -> str:
         """Determine the save format based on the file extension to avoid format mismatch."""
         if image_path.suffix.lower() in self.LOSSLESS_FORMATS:
-            return 'PNG'
-        return 'JPEG'
+            return "PNG"
+        return "JPEG"
 
     def _optimize_image(self, image_path: Path) -> Path:
         """Optimize image for better PDF conversion with single load/save cycle."""
@@ -136,18 +152,18 @@ class ImageConverter:
                 img = self._convert_image_to_rgb(img)
 
                 quality_settings = self.QUALITY_SETTINGS.get(
-                    self.quality, self.QUALITY_SETTINGS['medium']
+                    self.quality, self.QUALITY_SETTINGS["medium"]
                 )
                 save_format = self._get_save_format(image_path)
 
                 save_kwargs = {
-                    'optimize': True,
-                    'format': save_format,
-                    'dpi': (quality_settings['dpi'], quality_settings['dpi']),
+                    "optimize": True,
+                    "format": save_format,
+                    "dpi": (quality_settings["dpi"], quality_settings["dpi"]),
                 }
 
-                if save_format == 'JPEG':
-                    save_kwargs['quality'] = quality_settings['quality']
+                if save_format == "JPEG":
+                    save_kwargs["quality"] = quality_settings["quality"]
 
                 optimized_img = img.copy()
 
@@ -193,9 +209,7 @@ class ImageConverter:
 
             # Verify conversion success
             if not final_pdf_path.exists() or final_pdf_path.stat().st_size == 0:
-                raise FileProcessingError(
-                    "PDF conversion resulted in empty or missing file"
-                )
+                raise FileProcessingError("PDF conversion resulted in empty or missing file")
 
             logger.info(f"Image successfully converted to PDF: {final_pdf_path}")
             return final_pdf_path
@@ -204,19 +218,15 @@ class ImageConverter:
             raise
         except Exception as e:
             logger.error(f"Image conversion failed for {self.file_path}: {e}")
-            raise FileProcessingError(
-                f"Could not convert image to PDF: {e}"
-            ) from e
+            raise FileProcessingError(f"Could not convert image to PDF: {e}") from e
         finally:
             self._cleanup_temp_files(temp_pdf_path)
 
-    def _cleanup_temp_files(self, temp_pdf_path: Optional[Path]) -> None:
+    def _cleanup_temp_files(self, temp_pdf_path: Path | None) -> None:
         """Clean up temporary files created during processing."""
         if temp_pdf_path and temp_pdf_path.exists():
             try:
                 temp_pdf_path.unlink()
                 logger.debug(f"Cleaned up temporary file: {temp_pdf_path}")
             except Exception as e:
-                logger.warning(
-                    f"Could not clean up temporary file {temp_pdf_path}: {e}"
-                )
+                logger.warning(f"Could not clean up temporary file {temp_pdf_path}: {e}")

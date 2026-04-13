@@ -183,6 +183,9 @@ Drop a scanned PDF or an image into the consume folder. The Paperless
 log should now show the pre-consume script running and `ocrmypdf`
 embedding the text layer **before** Paperless itself takes over.
 
+> A ready-to-use `Dockerfile` and `docker-compose.example.yml` covering
+> the steps above are provided in [`examples/docker/`](examples/docker/).
+
 ### Environment variables used by the script
 
 Paperless-NGX sets these automatically when invoking the pre-consume script:
@@ -198,6 +201,7 @@ Paperless-NGX sets these automatically when invoking the pre-consume script:
 | `PAPERLESS_DBNAME` | Database name (default: `paperless`) |
 | `PAPERLESS_DBUSER` | Database user (default: `paperless`) |
 | `PAPERLESS_DBPW` | Database password (default: `paperless`) |
+| `PAPERLESS_PRE_CONSUME_LOG_LEVEL` | Log level for the pre-consume script (default: `INFO`, e.g. `DEBUG`) |
 
 ## Exit codes
 

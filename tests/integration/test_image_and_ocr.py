@@ -8,6 +8,7 @@ These tests cover both supported input types end-to-end:
     built directly with img2pdf — independently of ImageConverter — and
     handed straight to OCRProcessor / PDFProcessor.
 """
+
 import os
 from pathlib import Path
 
@@ -19,7 +20,6 @@ from exceptions import FileNotSupported
 from imageconverter import ImageConverter
 from ocrprocessor import OCRProcessor
 from pdfprocessor import PDFProcessor
-
 
 SAMPLE_TEXT = "HELLO PAPERLESS"
 
@@ -121,9 +121,7 @@ class TestImageConversionIntegration:
 class TestOCRIntegration:
     """Real OCR runs through ocrmypdf on a generated text PDF."""
 
-    def test_ocr_extracts_text_from_image_pdf(
-        self, text_png: Path, consume_dir: Path
-    ):
+    def test_ocr_extracts_text_from_image_pdf(self, text_png: Path, consume_dir: Path):
         # Step 1: image → PDF
         converter = ImageConverter(text_png, consume_dir)
         pdf = converter.convert_to_pdf()
@@ -207,6 +205,7 @@ class TestNativePDFInput:
         assert PDFProcessor.has_text(result) is True
 
         from pdfminer.high_level import extract_text
+
         extracted = extract_text(str(result)).upper()
         assert "HELLO" in extracted or "PAPERLESS" in extracted
 
@@ -220,9 +219,7 @@ class TestNativePDFInput:
         assert PDFProcessor.has_text(scan_pdf) is True
 
         # ocrmypdf metadata signature must be present after processing
-        assert PDFProcessor.check_metadata_pattern(
-            scan_pdf, r"Tesseract|ocrmypdf"
-        ) is True
+        assert PDFProcessor.check_metadata_pattern(scan_pdf, r"Tesseract|ocrmypdf") is True
 
         # Second pass: should be a no-op
         size_after_first = scan_pdf.stat().st_size
@@ -246,9 +243,7 @@ class TestNativePDFInput:
 class TestEndToEndPipeline:
     """Full pipeline: image dropped into consume → OCR'd PDF."""
 
-    def test_pipeline_image_to_searchable_pdf(
-        self, text_png: Path, consume_dir: Path
-    ):
+    def test_pipeline_image_to_searchable_pdf(self, text_png: Path, consume_dir: Path):
         # Phase 1: image → PDF in consume folder
         pdf = ImageConverter(text_png, consume_dir).convert_to_pdf()
         assert pdf.exists()

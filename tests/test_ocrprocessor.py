@@ -1,9 +1,10 @@
-import pytest
-from unittest.mock import patch, MagicMock
 from pathlib import Path
+from unittest.mock import patch
 
-from ocrprocessor import OCRProcessor
+import pytest
+
 from exceptions import FileProcessingError
+from ocrprocessor import OCRProcessor
 
 
 class TestBuildOcrmypdfArgs:
@@ -132,9 +133,7 @@ class TestShouldPerformOcr:
         """Should return True when scanner signature found in metadata."""
         mock_pdf.has_text.return_value = True
         mock_pdf.check_metadata_pattern.return_value = False
-        mock_pdf.get_metadata.return_value = {
-            "/Creator": "Canon Scanner v2.0"
-        }
+        mock_pdf.get_metadata.return_value = {"/Creator": "Canon Scanner v2.0"}
         proc = self._make_processor({"mode": "skip"})
         assert proc._should_perform_ocr() is True
 

@@ -1,12 +1,13 @@
 import logging
 import re
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
+
 import ocrmypdf
 
-from pdfprocessor import PDFProcessor
 from exceptions import FileProcessingError
 from logger import get_logger
+from pdfprocessor import PDFProcessor
 
 logger = get_logger(__name__)
 
@@ -16,9 +17,18 @@ class OCRProcessor:
 
     SUPPORTED_FORMATS = {".pdf"}
     CONFIG_PARAMS = {
-        'output_type', 'pages', 'language', 'mode', 'image_dpi',
-        'unpaper_clean', 'deskew', 'rotate_pages', 'rotate_pages_threshold',
-        'max_image_pixels', 'color_conversion_strategy', 'user_args',
+        "output_type",
+        "pages",
+        "language",
+        "mode",
+        "image_dpi",
+        "unpaper_clean",
+        "deskew",
+        "rotate_pages",
+        "rotate_pages_threshold",
+        "max_image_pixels",
+        "color_conversion_strategy",
+        "user_args",
     }
     MODE_MAPPING = {
         "force": "force_ocr",
@@ -35,22 +45,20 @@ class OCRProcessor:
         logging.CRITICAL: 2,
     }
 
-    def __init__(self, file_path: Path, config: Dict[str, Any]):
+    def __init__(self, file_path: Path, config: dict[str, Any]):
         self.file_path = file_path
         self.config = config
 
-    def _build_ocrmypdf_args(self) -> Dict[str, Any]:
+    def _build_ocrmypdf_args(self) -> dict[str, Any]:
         """Build arguments for ocrmypdf based on configuration."""
-        filtered_config = {
-            k: v for k, v in self.config.items() if k in self.CONFIG_PARAMS
-        }
+        filtered_config = {k: v for k, v in self.config.items() if k in self.CONFIG_PARAMS}
 
         special_configs = {
-            'pages': filtered_config.pop('pages', 0),
-            'unpaper_clean': filtered_config.pop('unpaper_clean', None),
-            'mode': filtered_config.pop('mode', None),
-            'max_image_pixels': filtered_config.pop('max_image_pixels', 0),
-            'user_args': filtered_config.pop('user_args', {}),
+            "pages": filtered_config.pop("pages", 0),
+            "unpaper_clean": filtered_config.pop("unpaper_clean", None),
+            "mode": filtered_config.pop("mode", None),
+            "max_image_pixels": filtered_config.pop("max_image_pixels", 0),
+            "user_args": filtered_config.pop("user_args", {}),
         }
 
         ocrmypdf_args = {
@@ -65,18 +73,16 @@ class OCRProcessor:
 
         return {k: v for k, v in ocrmypdf_args.items() if v is not None and v != ""}
 
-    def _apply_special_configs(
-        self, args: Dict[str, Any], configs: Dict[str, Any]
-    ) -> None:
+    def _apply_special_configs(self, args: dict[str, Any], configs: dict[str, Any]) -> None:
         """Apply special configuration settings to ocrmypdf arguments."""
-        if configs['pages'] and configs['pages'] > 0:
-            args['pages'] = configs['pages']
+        if configs["pages"] and configs["pages"] > 0:
+            args["pages"] = configs["pages"]
 
-        if configs['unpaper_clean']:
-            args[configs['unpaper_clean']] = True
+        if configs["unpaper_clean"]:
+            args[configs["unpaper_clean"]] = True
 
-        if configs['mode'] and configs['mode'] in self.MODE_MAPPING:
-            args[self.MODE_MAPPING[configs['mode']]] = True
+        if configs["mode"] and configs["mode"] in self.MODE_MAPPING:
+            args[self.MODE_MAPPING[configs["mode"]]] = True
 
         # Convert max_image_pixels (px) to ocrmypdf's max_image_mpixels (Mpx).
         # Only forward when the requested limit is at least 1 Mpx; smaller
@@ -84,19 +90,19 @@ class OCRProcessor:
         # "unlimited" — almost certainly not what the user meant. Below
         # 1 Mpx we fall back to ocrmypdf's own default by leaving the
         # argument unset.
-        max_pixels = configs['max_image_pixels']
+        max_pixels = configs["max_image_pixels"]
         if max_pixels and max_pixels >= 1_000_000:
-            args['max_image_mpixels'] = max(1, round(max_pixels / 1_000_000))
+            args["max_image_mpixels"] = max(1, round(max_pixels / 1_000_000))
 
-        if configs['user_args'] and isinstance(configs['user_args'], dict):
-            args.update(configs['user_args'])
+        if configs["user_args"] and isinstance(configs["user_args"], dict):
+            args.update(configs["user_args"])
 
     def _should_perform_ocr(self) -> bool:
         """Determine if OCR processing is needed."""
-        mode = self.config.get('mode')
+        mode = self.config.get("mode")
 
         # Check force OCR setting first
-        if mode == 'force':
+        if mode == "force":
             logger.info("Force OCR enabled in configuration")
             return True
 
@@ -109,22 +115,28 @@ class OCRProcessor:
         # Check if already processed by Tesseract
         if PDFProcessor.check_metadata_pattern(self.file_path, r"Tesseract|ocrmypdf"):
             logger.info("Document already processed by OCR software")
-            return mode == 'redo'
+            return mode == "redo"
 
         # Check for scanned document indicators
         metadata = PDFProcessor.get_metadata(self.file_path)
         if metadata:
             scanner_patterns = [
-                r"scan", r"scanner", r"xerox", r"canon", r"hp", r"epson",
-                r"brother", r"kyocera", r"ricoh", r"konica",
+                r"scan",
+                r"scanner",
+                r"xerox",
+                r"canon",
+                r"hp",
+                r"epson",
+                r"brother",
+                r"kyocera",
+                r"ricoh",
+                r"konica",
             ]
 
             for key, value in metadata.items():
                 for pattern in scanner_patterns:
                     if re.search(pattern, str(value), re.IGNORECASE):
-                        logger.info(
-                            f"Scanner signature found in metadata: {key}={value}"
-                        )
+                        logger.info(f"Scanner signature found in metadata: {key}={value}")
                         return True
 
         logger.info("OCR not needed - PDF already contains text")
@@ -140,7 +152,7 @@ class OCRProcessor:
             ocrmypdf_args = self._build_ocrmypdf_args()
 
             # image_dpi is only relevant for image inputs, not PDFs
-            ocrmypdf_args.pop('image_dpi', None)
+            ocrmypdf_args.pop("image_dpi", None)
 
             # ocrmypdf >= 16 renamed the first parameter to
             # `input_file_or_options` and accepts it positionally only.
@@ -164,9 +176,7 @@ class OCRProcessor:
             logger.info("OCR processing completed successfully")
 
             if not self.file_path.exists() or self.file_path.stat().st_size == 0:
-                raise FileProcessingError(
-                    "OCR processing resulted in empty or missing file"
-                )
+                raise FileProcessingError("OCR processing resulted in empty or missing file")
 
             return self.file_path
 
