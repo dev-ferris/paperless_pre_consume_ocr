@@ -1,6 +1,7 @@
 import shutil
 import uuid
 from pathlib import Path
+from typing import Any
 
 import img2pdf
 from PIL import Image, ImageEnhance, ImageOps
@@ -145,8 +146,8 @@ class ImageConverter:
         try:
             logger.info(f"Optimizing image for PDF conversion: {image_path}")
 
-            with Image.open(image_path) as img:
-                img = self._apply_orientation(img)
+            with Image.open(image_path) as src_img:
+                img: Image.Image = self._apply_orientation(src_img)
                 img = self._remove_alpha_channel(img)
                 img = self._resize_image(img)
                 img = self._convert_image_to_rgb(img)
@@ -156,7 +157,7 @@ class ImageConverter:
                 )
                 save_format = self._get_save_format(image_path)
 
-                save_kwargs = {
+                save_kwargs: dict[str, Any] = {
                     "optimize": True,
                     "format": save_format,
                     "dpi": (quality_settings["dpi"], quality_settings["dpi"]),

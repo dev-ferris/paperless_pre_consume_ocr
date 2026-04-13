@@ -164,10 +164,11 @@ class OCRProcessor:
             logger.info("Starting OCR processing")
             logger.info(f"OCR parameters: {ocrmypdf_args}")
 
-            # Configure ocrmypdf logging
+            # Configure ocrmypdf logging. configure_logging() expects an
+            # ocrmypdf.Verbosity enum value, not a bare int.
             verbosity = self.LOGGING_VERBOSITY_MAPPING.get(logger.level, 0)
             ocrmypdf.configure_logging(
-                verbosity=verbosity,
+                verbosity=ocrmypdf.Verbosity(verbosity),
                 manage_root_logger=False,
             )
 
