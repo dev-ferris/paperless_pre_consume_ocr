@@ -12,7 +12,7 @@ original image, so Paperless picks up the converted PDF instead.
 import os
 
 from . import image_converter, ocr
-from .environment import PaperlessEnvironment
+from .environment import Environment, fetch_ocr_config, load_database_config, load_environment
 from .exceptions import ConfigurationError, DatabaseError, FileNotSupported, FileProcessingError
 from .logger import get_logger, setup_logging
 
@@ -29,13 +29,13 @@ def main() -> int:
     logger.info("Paperless Pre-Consume: Starting OCR processing")
 
     try:
-        paperless_env = PaperlessEnvironment()
+        env = load_environment()
 
-        suffix = paperless_env.paths.working.suffix.lower()
+        suffix = env.paths.working.suffix.lower()
         if suffix in image_converter.SUPPORTED_FORMATS:
-            return _handle_image_conversion(paperless_env)
+            return _handle_image_conversion(env)
         elif suffix in ocr.SUPPORTED_FORMATS:
-            return _handle_ocr_processing(paperless_env)
+            return _handle_ocr_processing(env)
         else:
             raise FileNotSupported(f"Unsupported file format: {suffix}")
 
@@ -59,7 +59,7 @@ def main() -> int:
         return 3
 
 
-def _handle_image_conversion(env: PaperlessEnvironment) -> int:
+def _handle_image_conversion(env: Environment) -> int:
     """Handle image to PDF conversion phase."""
     logger.info("=== IMAGE CONVERSION PHASE ===")
 
@@ -76,11 +76,12 @@ def _handle_image_conversion(env: PaperlessEnvironment) -> int:
     return EXIT_IMAGE_CONVERTED
 
 
-def _handle_ocr_processing(env: PaperlessEnvironment) -> int:
+def _handle_ocr_processing(env: Environment) -> int:
     """Handle OCR processing phase."""
     logger.info("=== OCR PROCESSING PHASE ===")
 
-    ocr_config = env.config.get_ocr_config()
+    db = load_database_config()
+    ocr_config = fetch_ocr_config(db)
 
     logger.info(f"Processing file: {env.paths.working}")
     logger.debug(f"OCR configuration: {ocr_config}")
