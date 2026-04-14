@@ -4,10 +4,10 @@ Integration tests that exercise the real image-to-PDF and OCR pipeline.
 These tests cover both supported input types end-to-end:
   * **Image input**: a synthetic PNG/JPG with rendered text is converted
     to a PDF via image_converter.convert_image_to_pdf, then OCR'd via
-    OCRProcessor.
+    ocr.run_ocr.
   * **Native PDF input**: a fresh image-only PDF (no text layer) is
     built directly with img2pdf — independently of image_converter — and
-    handed straight to OCRProcessor / the pdf module.
+    handed straight to ocr.run_ocr / the pdf module.
 """
 
 import os
@@ -17,9 +17,8 @@ import img2pdf
 import pytest
 from PIL import Image, ImageDraw, ImageFont
 
-from paperless_pre_consume_ocr import image_converter, pdf
+from paperless_pre_consume_ocr import image_converter, ocr, pdf
 from paperless_pre_consume_ocr.exceptions import FileNotSupported
-from paperless_pre_consume_ocr.ocr import OCRProcessor
 
 SAMPLE_TEXT = "HELLO PAPERLESS"
 
@@ -127,7 +126,7 @@ class TestOCRIntegration:
         assert pdf.has_text(pdf_path) is False
 
         # Step 2: OCR the PDF
-        processor = OCRProcessor(
+        result = ocr.run_ocr(
             pdf_path,
             {
                 "mode": "force",
@@ -135,7 +134,6 @@ class TestOCRIntegration:
                 "output_type": "pdf",
             },
         )
-        result = processor.process()
 
         assert result.exists()
         assert result.stat().st_size > 0
@@ -153,20 +151,18 @@ class TestOCRIntegration:
         # Generate a PDF with text and OCR it once
         pdf_path = image_converter.convert_image_to_pdf(text_png, consume_dir)
 
-        first = OCRProcessor(
+        ocr.run_ocr(
             pdf_path,
             {"mode": "skip", "language": "eng", "output_type": "pdf"},
         )
-        first.process()
 
         # Second pass on a PDF that already contains an OCR layer:
         # should be a no-op when mode == "skip" and ocrmypdf metadata is
-        # detected. We rely on _should_perform_ocr returning False here.
-        second = OCRProcessor(
+        # detected. We rely on should_perform_ocr returning False here.
+        result = ocr.run_ocr(
             pdf_path,
             {"mode": "skip", "language": "eng", "output_type": "pdf"},
         )
-        result = second.process()
         assert result.exists()
 
 
@@ -180,10 +176,10 @@ class TestNativePDFInput:
         assert pdf.has_text(scan_pdf) is False
 
     def test_ocr_processes_native_scan_pdf(self, scan_pdf: Path):
-        """OCRProcessor should add a text layer to a native scan PDF."""
+        """ocr.run_ocr should add a text layer to a native scan PDF."""
         size_before = scan_pdf.stat().st_size
 
-        processor = OCRProcessor(
+        result = ocr.run_ocr(
             scan_pdf,
             {
                 "mode": "force",
@@ -191,7 +187,6 @@ class TestNativePDFInput:
                 "output_type": "pdf",
             },
         )
-        result = processor.process()
 
         assert result == scan_pdf  # processed in place
         assert result.exists()
@@ -206,12 +201,12 @@ class TestNativePDFInput:
         assert "HELLO" in extracted or "PAPERLESS" in extracted
 
     def test_ocr_skipped_on_native_pdf_already_processed(self, scan_pdf: Path):
-        """Running OCRProcessor twice with mode=skip must not re-OCR."""
+        """Running ocr.run_ocr twice with mode=skip must not re-OCR."""
         # First pass: add text layer
-        OCRProcessor(
+        ocr.run_ocr(
             scan_pdf,
             {"mode": "skip", "language": "eng", "output_type": "pdf"},
-        ).process()
+        )
         assert pdf.has_text(scan_pdf) is True
 
         # ocrmypdf metadata signature must be present after processing
@@ -219,10 +214,10 @@ class TestNativePDFInput:
 
         # Second pass: should be a no-op
         size_after_first = scan_pdf.stat().st_size
-        OCRProcessor(
+        ocr.run_ocr(
             scan_pdf,
             {"mode": "skip", "language": "eng", "output_type": "pdf"},
-        ).process()
+        )
         assert scan_pdf.exists()
         # File should be unchanged (skip path returns early)
         assert scan_pdf.stat().st_size == size_after_first
@@ -246,10 +241,10 @@ class TestEndToEndPipeline:
         assert pdf_path.parent == consume_dir
 
         # Phase 2: OCR the converted PDF (Paperless's second pass)
-        OCRProcessor(
+        ocr.run_ocr(
             pdf_path,
             {"mode": "force", "language": "eng", "output_type": "pdf"},
-        ).process()
+        )
 
         # Final artifact is searchable
         assert pdf.has_text(pdf_path) is True
