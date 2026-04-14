@@ -5,9 +5,9 @@ from typing import Any
 
 import ocrmypdf
 
+from . import pdf
 from .exceptions import FileProcessingError
 from .logger import get_logger
-from .pdf import PDFProcessor
 
 logger = get_logger(__name__)
 
@@ -107,18 +107,17 @@ class OCRProcessor:
             return True
 
         # Check if PDF has text
-        has_text = PDFProcessor.has_text(self.file_path)
-        if not has_text:
+        if not pdf.has_text(self.file_path):
             logger.info("PDF has no meaningful text, OCR needed")
             return True
 
         # Check if already processed by Tesseract
-        if PDFProcessor.check_metadata_pattern(self.file_path, r"Tesseract|ocrmypdf"):
+        if pdf.check_metadata_pattern(self.file_path, r"Tesseract|ocrmypdf"):
             logger.info("Document already processed by OCR software")
             return mode == "redo"
 
         # Check for scanned document indicators
-        metadata = PDFProcessor.get_metadata(self.file_path)
+        metadata = pdf.get_metadata(self.file_path)
         if metadata:
             scanner_patterns = [
                 r"scan",

@@ -6,7 +6,7 @@ These tests cover both supported input types end-to-end:
     to a PDF via ImageConverter, then OCR'd via OCRProcessor.
   * **Native PDF input**: a fresh image-only PDF (no text layer) is
     built directly with img2pdf — independently of ImageConverter — and
-    handed straight to OCRProcessor / PDFProcessor.
+    handed straight to OCRProcessor / pdf module.
 """
 
 import os
@@ -16,10 +16,10 @@ import img2pdf
 import pytest
 from PIL import Image, ImageDraw, ImageFont
 
+from paperless_pre_consume_ocr import pdf
 from paperless_pre_consume_ocr.exceptions import FileNotSupported
 from paperless_pre_consume_ocr.image_converter import ImageConverter
 from paperless_pre_consume_ocr.ocr import OCRProcessor
-from paperless_pre_consume_ocr.pdf import PDFProcessor
 
 SAMPLE_TEXT = "HELLO PAPERLESS"
 
@@ -127,7 +127,7 @@ class TestOCRIntegration:
         pdf = converter.convert_to_pdf()
 
         # The freshly-converted PDF has no embedded text yet
-        assert PDFProcessor.has_text(pdf) is False
+        assert pdf.has_text(pdf) is False
 
         # Step 2: OCR the PDF
         processor = OCRProcessor(
@@ -144,7 +144,7 @@ class TestOCRIntegration:
         assert result.stat().st_size > 0
 
         # Step 3: verify embedded text is present and readable
-        assert PDFProcessor.has_text(result) is True
+        assert pdf.has_text(result) is True
 
         from pdfminer.high_level import extract_text
 
@@ -181,7 +181,7 @@ class TestNativePDFInput:
         """A freshly scanned image-only PDF must not be reported as text-bearing."""
         assert scan_pdf.exists()
         assert scan_pdf.read_bytes()[:5] == b"%PDF-"
-        assert PDFProcessor.has_text(scan_pdf) is False
+        assert pdf.has_text(scan_pdf) is False
 
     def test_ocr_processes_native_scan_pdf(self, scan_pdf: Path):
         """OCRProcessor should add a text layer to a native scan PDF."""
@@ -202,7 +202,7 @@ class TestNativePDFInput:
         assert result.stat().st_size >= size_before
 
         # Text layer is now present
-        assert PDFProcessor.has_text(result) is True
+        assert pdf.has_text(result) is True
 
         from pdfminer.high_level import extract_text
 
@@ -216,10 +216,10 @@ class TestNativePDFInput:
             scan_pdf,
             {"mode": "skip", "language": "eng", "output_type": "pdf"},
         ).process()
-        assert PDFProcessor.has_text(scan_pdf) is True
+        assert pdf.has_text(scan_pdf) is True
 
         # ocrmypdf metadata signature must be present after processing
-        assert PDFProcessor.check_metadata_pattern(scan_pdf, r"Tesseract|ocrmypdf") is True
+        assert pdf.check_metadata_pattern(scan_pdf, r"Tesseract|ocrmypdf") is True
 
         # Second pass: should be a no-op
         size_after_first = scan_pdf.stat().st_size
@@ -232,8 +232,8 @@ class TestNativePDFInput:
         assert scan_pdf.stat().st_size == size_after_first
 
     def test_pdfprocessor_metadata_on_native_pdf(self, scan_pdf: Path):
-        """PDFProcessor.get_metadata should return real metadata for a native PDF."""
-        meta = PDFProcessor.get_metadata(scan_pdf)
+        """pdf.get_metadata should return real metadata for a native PDF."""
+        meta = pdf.get_metadata(scan_pdf)
         assert meta is not None
         assert meta["page_count"] == 1
         assert meta["pdf_version"]
@@ -256,4 +256,4 @@ class TestEndToEndPipeline:
         ).process()
 
         # Final artifact is searchable
-        assert PDFProcessor.has_text(pdf) is True
+        assert pdf.has_text(pdf) is True
