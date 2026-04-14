@@ -193,7 +193,8 @@ Paperless-NGX sets these automatically when invoking the pre-consume script:
 
 | Variable | Description |
 |----------|-------------|
-| `DOCUMENT_WORKING_PATH` | Path to the file currently being processed (required) |
+| `DOCUMENT_WORKING_PATH` | Path to Paperless's scratch copy of the file being processed (required) |
+| `DOCUMENT_SOURCE_PATH` | Path to the original file in the consume folder. Used to delete the original image after conversion so it does not keep re-triggering the consumer (optional but recommended) |
 | `DOCUMENT_CONSUME_PATH` | Path to the consume folder (default: `/usr/src/paperless/consume`) |
 | `TASK_ID` | ID of the processing task (optional) |
 | `PAPERLESS_DBHOST` | Database host (required) |

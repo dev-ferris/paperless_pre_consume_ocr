@@ -67,6 +67,7 @@ class TestMain:
         """Image files should trigger conversion and return EXIT_IMAGE_CONVERTED."""
         mock_env = MagicMock()
         mock_env.paths.working.suffix = ".jpg"
+        mock_env.paths.source = None
         mock_load_env.return_value = mock_env
 
         mock_image_converter.SUPPORTED_FORMATS = frozenset(
@@ -94,6 +95,73 @@ class TestMain:
         result = main()
         assert result == EXIT_IMAGE_CONVERTED
         mock_image_converter.convert_image_to_pdf.assert_called_once()
+
+    @patch("paperless_pre_consume_ocr.cli.image_converter")
+    @patch("paperless_pre_consume_ocr.cli.load_environment")
+    def test_image_conversion_removes_source_from_consume(
+        self, mock_load_env, mock_image_converter, tmp_path
+    ):
+        """After a successful conversion the original image must be deleted."""
+        # Real filesystem so we can observe unlink()
+        consume_dir = tmp_path / "consume"
+        consume_dir.mkdir()
+        source_file = consume_dir / "scan.jpg"
+        source_file.write_bytes(b"fake image bytes")
+
+        mock_env = MagicMock()
+        mock_env.paths.working.suffix = ".jpg"
+        mock_env.paths.source = source_file
+        mock_load_env.return_value = mock_env
+
+        mock_image_converter.SUPPORTED_FORMATS = frozenset({".jpg"})
+        mock_pdf_path = MagicMock()
+        mock_pdf_path.exists.return_value = True
+        mock_image_converter.convert_image_to_pdf.return_value = mock_pdf_path
+
+        result = main()
+
+        assert result == EXIT_IMAGE_CONVERTED
+        assert not source_file.exists(), "original image must be removed from consume/"
+
+    @patch("paperless_pre_consume_ocr.cli.image_converter")
+    @patch("paperless_pre_consume_ocr.cli.load_environment")
+    def test_image_conversion_tolerates_missing_source_env(
+        self, mock_load_env, mock_image_converter
+    ):
+        """Cleanup must be a no-op when DOCUMENT_SOURCE_PATH is absent."""
+        mock_env = MagicMock()
+        mock_env.paths.working.suffix = ".png"
+        mock_env.paths.source = None
+        mock_load_env.return_value = mock_env
+
+        mock_image_converter.SUPPORTED_FORMATS = frozenset({".png"})
+        mock_pdf_path = MagicMock()
+        mock_pdf_path.exists.return_value = True
+        mock_image_converter.convert_image_to_pdf.return_value = mock_pdf_path
+
+        result = main()
+        assert result == EXIT_IMAGE_CONVERTED
+
+    @patch("paperless_pre_consume_ocr.cli.image_converter")
+    @patch("paperless_pre_consume_ocr.cli.load_environment")
+    def test_image_conversion_survives_unlink_failure(self, mock_load_env, mock_image_converter):
+        """A failing source unlink must not mask the successful conversion."""
+        fake_source = MagicMock(spec=Path)
+        fake_source.unlink.side_effect = OSError("read-only fs")
+
+        mock_env = MagicMock()
+        mock_env.paths.working.suffix = ".jpg"
+        mock_env.paths.source = fake_source
+        mock_load_env.return_value = mock_env
+
+        mock_image_converter.SUPPORTED_FORMATS = frozenset({".jpg"})
+        mock_pdf_path = MagicMock()
+        mock_pdf_path.exists.return_value = True
+        mock_image_converter.convert_image_to_pdf.return_value = mock_pdf_path
+
+        result = main()
+        assert result == EXIT_IMAGE_CONVERTED
+        fake_source.unlink.assert_called_once_with(missing_ok=True)
 
     @patch("paperless_pre_consume_ocr.cli.load_environment")
     def test_unexpected_error_returns_3(self, mock_load_env):

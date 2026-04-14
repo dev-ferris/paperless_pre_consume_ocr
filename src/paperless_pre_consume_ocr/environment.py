@@ -61,6 +61,7 @@ class DocumentPaths:
 
     working: Path
     consume: Path
+    source: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -96,7 +97,15 @@ def _load_document_paths() -> DocumentPaths:
 
     consume = Path(os.environ.get("DOCUMENT_CONSUME_PATH", "/usr/src/paperless/consume"))
 
-    return DocumentPaths(working=working, consume=consume)
+    # DOCUMENT_SOURCE_PATH points at the file in the consume folder
+    # (as opposed to DOCUMENT_WORKING_PATH, which is Paperless's scratch
+    # copy). We need it to clean up the original after image conversion
+    # — otherwise the image lingers in consume/ and keeps re-triggering
+    # the consumer.
+    source_env = os.environ.get("DOCUMENT_SOURCE_PATH")
+    source = Path(source_env) if source_env else None
+
+    return DocumentPaths(working=working, consume=consume, source=source)
 
 
 def load_database_config() -> DatabaseConfig:

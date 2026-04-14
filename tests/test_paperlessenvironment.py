@@ -156,6 +156,30 @@ class TestLoadEnvironment:
             assert result.paths.working == working_file
             assert result.paths.consume == tmp_path / "consume"
 
+    def test_source_path_read_when_set(self, tmp_path):
+        """DOCUMENT_SOURCE_PATH should be captured for post-conversion cleanup."""
+        working_file = tmp_path / "scratch.png"
+        working_file.touch()
+        source_file = tmp_path / "consume" / "original.png"
+
+        env = {
+            "DOCUMENT_WORKING_PATH": str(working_file),
+            "DOCUMENT_SOURCE_PATH": str(source_file),
+        }
+        with patch.dict(os.environ, env, clear=True):
+            result = load_environment()
+            assert result.paths.source == source_file
+
+    def test_source_path_defaults_to_none(self, tmp_path):
+        """source should be None when DOCUMENT_SOURCE_PATH is not set."""
+        working_file = tmp_path / "test.pdf"
+        working_file.touch()
+
+        env = {"DOCUMENT_WORKING_PATH": str(working_file)}
+        with patch.dict(os.environ, env, clear=True):
+            result = load_environment()
+            assert result.paths.source is None
+
     def test_consume_default_path(self, tmp_path):
         """consume should use default when DOCUMENT_CONSUME_PATH is not set."""
         working_file = tmp_path / "test.pdf"

@@ -10,6 +10,7 @@ original image, so Paperless picks up the converted PDF instead.
 """
 
 import os
+from pathlib import Path
 
 from . import image_converter, ocr
 from .environment import Environment, fetch_ocr_config, load_database_config, load_environment
@@ -72,8 +73,34 @@ def _handle_image_conversion(env: Environment) -> int:
         raise FileProcessingError(f"PDF conversion failed - output file not found: {pdf_path}")
 
     logger.info(f"Image successfully converted to PDF: {pdf_path}")
+
+    # Remove the original image from the consume folder so it doesn't
+    # keep retriggering the consumer after our non-zero abort.
+    _remove_original_image(env.paths.source)
+
     logger.info("Exiting to allow Paperless to re-consume the PDF")
     return EXIT_IMAGE_CONVERTED
+
+
+def _remove_original_image(source: Path | None) -> None:
+    """
+    Delete the original image from the consume folder.
+
+    After image conversion we exit non-zero to abort Paperless's
+    consumption of the original, which otherwise leaves the file in
+    ``consume/`` forever. ``DOCUMENT_SOURCE_PATH`` is the only env var
+    that points at that file (``DOCUMENT_WORKING_PATH`` is a scratch
+    copy), so we skip cleanup if it isn't set. Failures are logged but
+    never re-raised — the conversion already succeeded.
+    """
+    if source is None:
+        logger.debug("DOCUMENT_SOURCE_PATH not set; skipping original image cleanup")
+        return
+    try:
+        source.unlink(missing_ok=True)
+        logger.info(f"Removed original image from consume folder: {source}")
+    except OSError as e:
+        logger.warning(f"Could not remove original image {source}: {e}")
 
 
 def _handle_ocr_processing(env: Environment) -> int:
