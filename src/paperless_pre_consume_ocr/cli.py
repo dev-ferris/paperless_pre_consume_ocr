@@ -11,11 +11,10 @@ original image, so Paperless picks up the converted PDF instead.
 
 import os
 
-from . import image_converter
+from . import image_converter, ocr
 from .environment import PaperlessEnvironment
 from .exceptions import ConfigurationError, DatabaseError, FileNotSupported, FileProcessingError
 from .logger import get_logger, setup_logging
-from .ocr import OCRProcessor
 
 logger = get_logger(__name__)
 
@@ -35,7 +34,7 @@ def main() -> int:
         suffix = paperless_env.paths.working.suffix.lower()
         if suffix in image_converter.SUPPORTED_FORMATS:
             return _handle_image_conversion(paperless_env)
-        elif suffix in OCRProcessor.SUPPORTED_FORMATS:
+        elif suffix in ocr.SUPPORTED_FORMATS:
             return _handle_ocr_processing(paperless_env)
         else:
             raise FileNotSupported(f"Unsupported file format: {suffix}")
@@ -86,8 +85,7 @@ def _handle_ocr_processing(env: PaperlessEnvironment) -> int:
     logger.info(f"Processing file: {env.paths.working}")
     logger.debug(f"OCR configuration: {ocr_config}")
 
-    processor = OCRProcessor(env.paths.working, ocr_config)
-    result_path = processor.process()
+    result_path = ocr.run_ocr(env.paths.working, ocr_config)
 
     if not result_path:
         raise FileProcessingError("OCR processing returned no result")

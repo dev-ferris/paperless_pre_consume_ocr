@@ -34,26 +34,21 @@ class TestMain:
         result = main()
         assert result == os.EX_NOINPUT
 
-    @patch("paperless_pre_consume_ocr.cli.OCRProcessor")
+    @patch("paperless_pre_consume_ocr.cli.ocr")
     @patch("paperless_pre_consume_ocr.cli.PaperlessEnvironment")
-    def test_pdf_triggers_ocr_processing(self, mock_env_cls, mock_ocr_cls):
+    def test_pdf_triggers_ocr_processing(self, mock_env_cls, mock_ocr):
         """PDF files should trigger OCR processing."""
         mock_env = MagicMock()
         mock_env.paths.working.suffix = ".pdf"
         mock_env.config.get_ocr_config.return_value = {"mode": "skip"}
         mock_env_cls.return_value = mock_env
 
-        # Set SUPPORTED_FORMATS as real sets so `in` works correctly
-        mock_ocr_cls.SUPPORTED_FORMATS = {".pdf"}
-
-        mock_processor = MagicMock()
-        mock_processor.process.return_value = Path("/tmp/test.pdf")
-        mock_ocr_cls.return_value = mock_processor
+        mock_ocr.SUPPORTED_FORMATS = frozenset({".pdf"})
+        mock_ocr.run_ocr.return_value = Path("/tmp/test.pdf")
 
         result = main()
         assert result == 0
-        mock_ocr_cls.assert_called_once()
-        mock_processor.process.assert_called_once()
+        mock_ocr.run_ocr.assert_called_once()
 
     @patch("paperless_pre_consume_ocr.cli.image_converter")
     @patch("paperless_pre_consume_ocr.cli.PaperlessEnvironment")
