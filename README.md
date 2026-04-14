@@ -35,6 +35,7 @@ src/paperless_pre_consume_ocr/
 ├── cli.py                  # Console script (paperless-pre-consume-ocr)
 ├── environment.py          # Environment variables + DB config
 ├── image_converter.py      # Image → PDF conversion
+├── image_ops.py            # Pure Pillow image transforms
 ├── ocr.py                  # OCR processing via ocrmypdf
 ├── pdf.py                  # PDF metadata & text extraction
 ├── exceptions.py           # Custom exceptions
@@ -193,7 +194,6 @@ Paperless-NGX sets these automatically when invoking the pre-consume script:
 | Variable | Description |
 |----------|-------------|
 | `DOCUMENT_WORKING_PATH` | Path to the file currently being processed (required) |
-| `DOCUMENT_SOURCE_PATH` | Original path of the document (optional) |
 | `DOCUMENT_CONSUME_PATH` | Path to the consume folder (default: `/usr/src/paperless/consume`) |
 | `TASK_ID` | ID of the processing task (optional) |
 | `PAPERLESS_DBHOST` | Database host (required) |
