@@ -14,9 +14,3 @@ class FileNotSupported(Exception):
     """Custom exception for unsupported file formats."""
 
     pass
-
-
-class ConfigurationError(Exception):
-    """Custom exception for configuration errors."""
-
-    pass
