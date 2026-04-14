@@ -37,12 +37,12 @@ class OCRProcessor:
         "redo": "redo_ocr",
     }
     LOGGING_VERBOSITY_MAPPING = {
-        logging.NOTSET: -1,
-        logging.INFO: 0,
+        logging.NOTSET: 0,
         logging.DEBUG: 1,
-        logging.WARNING: 1,
-        logging.ERROR: 2,
-        logging.CRITICAL: 2,
+        logging.INFO: 0,
+        logging.WARNING: -1,
+        logging.ERROR: -1,
+        logging.CRITICAL: -1,
     }
 
     def __init__(self, file_path: Path, config: dict[str, Any]):

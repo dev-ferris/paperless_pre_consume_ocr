@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import psycopg
+from psycopg import conninfo
 from psycopg.rows import dict_row
 
 from .exceptions import DatabaseError
@@ -49,10 +50,13 @@ class PaperlessConfig:
         """
         config: dict[str, Any] = dict(self.__DEFAULT_OCR_CONFIG)
 
-        conn_str = (
-            f"host={self.host} port={self.port} dbname={self.name} "
-            f"user={self.user} password={self.password} "
-            f"connect_timeout=5"
+        conn_str = conninfo.make_conninfo(
+            host=self.host,
+            port=self.port,
+            dbname=self.name,
+            user=self.user,
+            password=self.password,
+            connect_timeout=5,
         )
 
         logger.info(

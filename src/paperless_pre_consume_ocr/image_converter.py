@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import img2pdf
-from PIL import Image, ImageEnhance, ImageOps
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from .exceptions import FileNotSupported, FileProcessingError
 from .logger import get_logger
@@ -52,6 +52,11 @@ class ImageConverter:
     }
 
     def __init__(self, file_path: Path, destination_folder: Path, quality: str = "high"):
+        if quality not in self.QUALITY_SETTINGS:
+            raise ValueError(
+                f"Invalid quality {quality!r}; expected one of {sorted(self.QUALITY_SETTINGS)}"
+            )
+
         self.file_path = Path(file_path)
         self.destination_folder = Path(destination_folder)
         self.quality = quality
@@ -69,71 +74,58 @@ class ImageConverter:
 
     def _apply_orientation(self, img: Image.Image) -> Image.Image:
         """Apply orientation based on EXIF data if available."""
-        try:
-            return ImageOps.exif_transpose(img)
-        except Exception as e:
-            logger.warning(f"EXIF transpose failed, continuing without orientation correction: {e}")
-            return img
+        return ImageOps.exif_transpose(img)
 
     def _remove_alpha_channel(self, img: Image.Image) -> Image.Image:
         """Remove alpha channel from image if present."""
-        try:
-            if img.mode in ("RGBA", "LA"):
-                logger.debug(f"Removing alpha channel from image with mode: {img.mode}")
-                bg_mode = "RGB" if img.mode == "RGBA" else "L"
-                bg_color = (255, 255, 255) if img.mode == "RGBA" else 255
-                background = Image.new(bg_mode, img.size, bg_color)
-                background.paste(img, mask=img.split()[-1])
-                return background
-            elif img.mode == "PA":
-                return img.convert("RGBA").convert("RGB")
-            return img
-        except Exception as e:
-            logger.error(f"Failed to remove alpha channel: {e}")
-            return img
+        if img.mode in ("RGBA", "LA"):
+            logger.debug(f"Removing alpha channel from image with mode: {img.mode}")
+            bg_mode = "RGB" if img.mode == "RGBA" else "L"
+            bg_color = (255, 255, 255) if img.mode == "RGBA" else 255
+            background = Image.new(bg_mode, img.size, bg_color)
+            background.paste(img, mask=img.split()[-1])
+            return background
+        if img.mode == "PA":
+            return img.convert("RGBA").convert("RGB")
+        return img
 
     def _convert_image_to_rgb(self, img: Image.Image) -> Image.Image:
         """Convert image to RGB mode if necessary."""
-        try:
-            if img.mode == "L":
-                return img  # Grayscale is fine for OCR
-            if img.mode != "RGB":
-                logger.info(f"Converting {img.mode} image to RGB")
-                return img.convert("RGB")
-            return img
-        except Exception as e:
-            logger.error(f"Image conversion to RGB failed: {e}")
-            return img
+        if img.mode == "L":
+            return img  # Grayscale is fine for OCR
+        if img.mode != "RGB":
+            logger.info(f"Converting {img.mode} image to RGB")
+            return img.convert("RGB")
+        return img
 
-    def _resize_image(
-        self, img: Image.Image, max_dimension: int = 4096, sharpness: float = 1.0
-    ) -> Image.Image:
+    @staticmethod
+    def _current_dpi(img: Image.Image) -> float:
+        """Extract a single DPI value from Pillow's heterogeneous info dict."""
+        dpi = img.info.get("dpi", 72)
+        if isinstance(dpi, tuple):
+            dpi = dpi[0] if dpi else 72
+        return float(dpi) or 72.0
+
+    def _resize_image(self, img: Image.Image, max_dimension: int = 4096) -> Image.Image:
         """Resize image based on quality settings and max dimension."""
-        try:
-            quality_settings = self.QUALITY_SETTINGS.get(
-                self.quality, self.QUALITY_SETTINGS["medium"]
-            )
-            target_dpi = quality_settings["dpi"]
+        quality_settings = self.QUALITY_SETTINGS[self.quality]
+        target_dpi = quality_settings["dpi"]
 
-            current_dpi = img.info.get("dpi", (72, 72))[0]
-            scale_factor = target_dpi / current_dpi
+        current_dpi = self._current_dpi(img)
+        scale_factor = target_dpi / current_dpi
 
-            if abs(scale_factor - 1.0) > 0.1:
-                new_size = tuple(x * scale_factor for x in img.size)
-                if max(new_size) > max_dimension:
-                    limit_scale = max_dimension / max(new_size)
-                    new_size = tuple(int(x * limit_scale) for x in new_size)
-                else:
-                    new_size = tuple(int(x) for x in new_size)
-
-                logger.info(f"Resizing image from {img.size} to {new_size}")
-                img = img.resize(new_size, Image.Resampling.LANCZOS)
-                img = ImageEnhance.Sharpness(img).enhance(sharpness)
-
+        if abs(scale_factor - 1.0) <= 0.1:
             return img
-        except Exception as e:
-            logger.error(f"Image resizing failed: {e}")
-            return img
+
+        new_size = tuple(x * scale_factor for x in img.size)
+        if max(new_size) > max_dimension:
+            limit_scale = max_dimension / max(new_size)
+            new_size = tuple(int(x * limit_scale) for x in new_size)
+        else:
+            new_size = tuple(int(x) for x in new_size)
+
+        logger.info(f"Resizing image from {img.size} to {new_size}")
+        return img.resize(new_size, Image.Resampling.LANCZOS)
 
     def _get_save_format(self, image_path: Path) -> str:
         """Determine the save format based on the file extension to avoid format mismatch."""
@@ -142,19 +134,24 @@ class ImageConverter:
         return "JPEG"
 
     def _optimize_image(self, image_path: Path) -> Path:
-        """Optimize image for better PDF conversion with single load/save cycle."""
-        try:
-            logger.info(f"Optimizing image for PDF conversion: {image_path}")
+        """
+        Optimize image for better PDF conversion with single load/save cycle.
 
+        Raises:
+            FileProcessingError: if the image cannot be opened, transformed
+                or saved. Silently returning the unoptimized source would
+                mask pipeline bugs that hurt OCR quality downstream.
+        """
+        logger.info(f"Optimizing image for PDF conversion: {image_path}")
+
+        try:
             with Image.open(image_path) as src_img:
                 img: Image.Image = self._apply_orientation(src_img)
                 img = self._remove_alpha_channel(img)
                 img = self._resize_image(img)
                 img = self._convert_image_to_rgb(img)
 
-                quality_settings = self.QUALITY_SETTINGS.get(
-                    self.quality, self.QUALITY_SETTINGS["medium"]
-                )
+                quality_settings = self.QUALITY_SETTINGS[self.quality]
                 save_format = self._get_save_format(image_path)
 
                 save_kwargs: dict[str, Any] = {
@@ -169,12 +166,11 @@ class ImageConverter:
                 optimized_img = img.copy()
 
             optimized_img.save(image_path, **save_kwargs)
-            logger.info(f"Image optimization completed: {image_path}")
-            return image_path
+        except (UnidentifiedImageError, OSError, ValueError) as e:
+            raise FileProcessingError(f"Image optimization failed for {image_path}: {e}") from e
 
-        except Exception as e:
-            logger.error(f"Image optimization failed for {image_path}: {e}")
-            return image_path  # Return original if optimization fails
+        logger.info(f"Image optimization completed: {image_path}")
+        return image_path
 
     def convert_to_pdf(self) -> Path:
         """Convert image file to PDF with enhanced error handling and optimization."""
