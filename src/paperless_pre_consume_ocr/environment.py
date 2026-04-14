@@ -61,7 +61,6 @@ class DocumentPaths:
 
     working: Path
     consume: Path
-    source: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -95,12 +94,9 @@ def _load_document_paths() -> DocumentPaths:
     if not working.exists():
         raise FileNotFoundError(f"Document file does not exist: {working}")
 
-    source_env = os.environ.get("DOCUMENT_SOURCE_PATH")
-    source = Path(source_env) if source_env else None
-
     consume = Path(os.environ.get("DOCUMENT_CONSUME_PATH", "/usr/src/paperless/consume"))
 
-    return DocumentPaths(working=working, consume=consume, source=source)
+    return DocumentPaths(working=working, consume=consume)
 
 
 def load_database_config() -> DatabaseConfig:

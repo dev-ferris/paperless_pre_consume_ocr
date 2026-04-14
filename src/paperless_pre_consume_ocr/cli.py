@@ -13,7 +13,7 @@ import os
 
 from . import image_converter, ocr
 from .environment import Environment, fetch_ocr_config, load_database_config, load_environment
-from .exceptions import ConfigurationError, DatabaseError, FileNotSupported, FileProcessingError
+from .exceptions import DatabaseError, FileNotSupported, FileProcessingError
 from .logger import get_logger, setup_logging
 
 logger = get_logger(__name__)
@@ -45,7 +45,7 @@ def main() -> int:
     except FileNotFoundError as e:
         logger.error(f"File not found: {e}")
         return os.EX_NOINPUT
-    except (ValueError, ConfigurationError) as e:
+    except ValueError as e:
         logger.error(f"Configuration error: {e}")
         return os.EX_CONFIG
     except DatabaseError as e:

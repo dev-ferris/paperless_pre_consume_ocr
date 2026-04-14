@@ -149,24 +149,12 @@ class TestLoadEnvironment:
 
         env = {
             "DOCUMENT_WORKING_PATH": str(working_file),
-            "DOCUMENT_SOURCE_PATH": str(tmp_path / "source.pdf"),
             "DOCUMENT_CONSUME_PATH": str(tmp_path / "consume"),
         }
         with patch.dict(os.environ, env, clear=True):
             result = load_environment()
             assert result.paths.working == working_file
-            assert result.paths.source == tmp_path / "source.pdf"
             assert result.paths.consume == tmp_path / "consume"
-
-    def test_source_path_none_when_unset(self, tmp_path):
-        """source should be None when DOCUMENT_SOURCE_PATH is not set."""
-        working_file = tmp_path / "test.pdf"
-        working_file.touch()
-
-        env = {"DOCUMENT_WORKING_PATH": str(working_file)}
-        with patch.dict(os.environ, env, clear=True):
-            result = load_environment()
-            assert result.paths.source is None
 
     def test_consume_default_path(self, tmp_path):
         """consume should use default when DOCUMENT_CONSUME_PATH is not set."""
