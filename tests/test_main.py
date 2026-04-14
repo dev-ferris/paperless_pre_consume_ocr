@@ -55,39 +55,39 @@ class TestMain:
         mock_ocr_cls.assert_called_once()
         mock_processor.process.assert_called_once()
 
-    @patch("paperless_pre_consume_ocr.cli.ImageConverter")
+    @patch("paperless_pre_consume_ocr.cli.image_converter")
     @patch("paperless_pre_consume_ocr.cli.PaperlessEnvironment")
-    def test_image_triggers_conversion(self, mock_env_cls, mock_converter_cls):
+    def test_image_triggers_conversion(self, mock_env_cls, mock_image_converter):
         """Image files should trigger conversion and return EXIT_IMAGE_CONVERTED."""
         mock_env = MagicMock()
         mock_env.paths.working.suffix = ".jpg"
         mock_env_cls.return_value = mock_env
 
-        # Set SUPPORTED_FORMATS as real sets so `in` works correctly
-        mock_converter_cls.SUPPORTED_FORMATS = {
-            ".jpg",
-            ".jpeg",
-            ".png",
-            ".bmp",
-            ".tiff",
-            ".tif",
-            ".webp",
-            ".gif",
-            ".ico",
-            ".pcx",
-            ".ppm",
-            ".pgm",
-            ".pbm",
-        }
+        mock_image_converter.SUPPORTED_FORMATS = frozenset(
+            {
+                ".jpg",
+                ".jpeg",
+                ".png",
+                ".bmp",
+                ".tiff",
+                ".tif",
+                ".webp",
+                ".gif",
+                ".ico",
+                ".pcx",
+                ".ppm",
+                ".pgm",
+                ".pbm",
+            }
+        )
 
-        mock_converter = MagicMock()
         mock_pdf_path = MagicMock()
         mock_pdf_path.exists.return_value = True
-        mock_converter.convert_to_pdf.return_value = mock_pdf_path
-        mock_converter_cls.return_value = mock_converter
+        mock_image_converter.convert_image_to_pdf.return_value = mock_pdf_path
 
         result = main()
         assert result == EXIT_IMAGE_CONVERTED
+        mock_image_converter.convert_image_to_pdf.assert_called_once()
 
     @patch("paperless_pre_consume_ocr.cli.PaperlessEnvironment")
     def test_unexpected_error_returns_3(self, mock_env_cls):

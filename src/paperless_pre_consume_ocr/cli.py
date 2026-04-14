@@ -11,9 +11,9 @@ original image, so Paperless picks up the converted PDF instead.
 
 import os
 
+from . import image_converter
 from .environment import PaperlessEnvironment
 from .exceptions import ConfigurationError, DatabaseError, FileNotSupported, FileProcessingError
-from .image_converter import ImageConverter
 from .logger import get_logger, setup_logging
 from .ocr import OCRProcessor
 
@@ -33,7 +33,7 @@ def main() -> int:
         paperless_env = PaperlessEnvironment()
 
         suffix = paperless_env.paths.working.suffix.lower()
-        if suffix in ImageConverter.SUPPORTED_FORMATS:
+        if suffix in image_converter.SUPPORTED_FORMATS:
             return _handle_image_conversion(paperless_env)
         elif suffix in OCRProcessor.SUPPORTED_FORMATS:
             return _handle_ocr_processing(paperless_env)
@@ -64,8 +64,10 @@ def _handle_image_conversion(env: PaperlessEnvironment) -> int:
     """Handle image to PDF conversion phase."""
     logger.info("=== IMAGE CONVERSION PHASE ===")
 
-    converter = ImageConverter(env.paths.working, env.paths.consume)
-    pdf_path = converter.convert_to_pdf()
+    pdf_path = image_converter.convert_image_to_pdf(
+        env.paths.working,
+        env.paths.consume,
+    )
 
     if not pdf_path or not pdf_path.exists():
         raise FileProcessingError(f"PDF conversion failed - output file not found: {pdf_path}")

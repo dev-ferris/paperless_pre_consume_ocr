@@ -3,10 +3,11 @@ Integration tests that exercise the real image-to-PDF and OCR pipeline.
 
 These tests cover both supported input types end-to-end:
   * **Image input**: a synthetic PNG/JPG with rendered text is converted
-    to a PDF via ImageConverter, then OCR'd via OCRProcessor.
+    to a PDF via image_converter.convert_image_to_pdf, then OCR'd via
+    OCRProcessor.
   * **Native PDF input**: a fresh image-only PDF (no text layer) is
-    built directly with img2pdf — independently of ImageConverter — and
-    handed straight to OCRProcessor / pdf module.
+    built directly with img2pdf — independently of image_converter — and
+    handed straight to OCRProcessor / the pdf module.
 """
 
 import os
@@ -16,9 +17,8 @@ import img2pdf
 import pytest
 from PIL import Image, ImageDraw, ImageFont
 
-from paperless_pre_consume_ocr import pdf
+from paperless_pre_consume_ocr import image_converter, pdf
 from paperless_pre_consume_ocr.exceptions import FileNotSupported
-from paperless_pre_consume_ocr.image_converter import ImageConverter
 from paperless_pre_consume_ocr.ocr import OCRProcessor
 
 SAMPLE_TEXT = "HELLO PAPERLESS"
@@ -79,7 +79,7 @@ def text_jpg(tmp_path: Path) -> Path:
 def scan_pdf(tmp_path: Path) -> Path:
     """
     Build a native image-only PDF (no text layer) directly with img2pdf,
-    independently of ImageConverter. Simulates a freshly scanned document.
+    independently of image_converter. Simulates a freshly scanned document.
     """
     img_path = _create_text_image(tmp_path / "_scan_source.png")
     pdf_path = tmp_path / "scan.pdf"
@@ -93,29 +93,27 @@ class TestImageConversionIntegration:
     """Real image → PDF conversion using img2pdf and Pillow."""
 
     def test_png_converts_to_pdf(self, text_png: Path, consume_dir: Path):
-        converter = ImageConverter(text_png, consume_dir)
-        pdf = converter.convert_to_pdf()
+        pdf_path = image_converter.convert_image_to_pdf(text_png, consume_dir)
 
-        assert pdf.exists()
-        assert pdf.suffix == ".pdf"
-        assert pdf.stat().st_size > 0
-        assert pdf.parent == consume_dir
+        assert pdf_path.exists()
+        assert pdf_path.suffix == ".pdf"
+        assert pdf_path.stat().st_size > 0
+        assert pdf_path.parent == consume_dir
         # img2pdf writes the standard PDF header
-        assert pdf.read_bytes()[:5] == b"%PDF-"
+        assert pdf_path.read_bytes()[:5] == b"%PDF-"
 
     def test_jpg_converts_to_pdf(self, text_jpg: Path, consume_dir: Path):
-        converter = ImageConverter(text_jpg, consume_dir)
-        pdf = converter.convert_to_pdf()
+        pdf_path = image_converter.convert_image_to_pdf(text_jpg, consume_dir)
 
-        assert pdf.exists()
-        assert pdf.stat().st_size > 0
-        assert pdf.read_bytes()[:5] == b"%PDF-"
+        assert pdf_path.exists()
+        assert pdf_path.stat().st_size > 0
+        assert pdf_path.read_bytes()[:5] == b"%PDF-"
 
     def test_unsupported_format_raises(self, tmp_path: Path, consume_dir: Path):
         weird = tmp_path / "note.txt"
         weird.write_text("not an image")
         with pytest.raises(FileNotSupported):
-            ImageConverter(weird, consume_dir)
+            image_converter.convert_image_to_pdf(weird, consume_dir)
 
 
 class TestOCRIntegration:
@@ -123,15 +121,14 @@ class TestOCRIntegration:
 
     def test_ocr_extracts_text_from_image_pdf(self, text_png: Path, consume_dir: Path):
         # Step 1: image → PDF
-        converter = ImageConverter(text_png, consume_dir)
-        pdf = converter.convert_to_pdf()
+        pdf_path = image_converter.convert_image_to_pdf(text_png, consume_dir)
 
         # The freshly-converted PDF has no embedded text yet
-        assert pdf.has_text(pdf) is False
+        assert pdf.has_text(pdf_path) is False
 
         # Step 2: OCR the PDF
         processor = OCRProcessor(
-            pdf,
+            pdf_path,
             {
                 "mode": "force",
                 "language": "eng",
@@ -154,11 +151,10 @@ class TestOCRIntegration:
 
     def test_ocr_skipped_for_text_pdf(self, text_png: Path, consume_dir: Path):
         # Generate a PDF with text and OCR it once
-        converter = ImageConverter(text_png, consume_dir)
-        pdf = converter.convert_to_pdf()
+        pdf_path = image_converter.convert_image_to_pdf(text_png, consume_dir)
 
         first = OCRProcessor(
-            pdf,
+            pdf_path,
             {"mode": "skip", "language": "eng", "output_type": "pdf"},
         )
         first.process()
@@ -167,7 +163,7 @@ class TestOCRIntegration:
         # should be a no-op when mode == "skip" and ocrmypdf metadata is
         # detected. We rely on _should_perform_ocr returning False here.
         second = OCRProcessor(
-            pdf,
+            pdf_path,
             {"mode": "skip", "language": "eng", "output_type": "pdf"},
         )
         result = second.process()
@@ -175,7 +171,7 @@ class TestOCRIntegration:
 
 
 class TestNativePDFInput:
-    """OCR and text detection on a real PDF input (not produced by ImageConverter)."""
+    """OCR and text detection on a real PDF input (not produced by image_converter)."""
 
     def test_scan_pdf_has_no_text_initially(self, scan_pdf: Path):
         """A freshly scanned image-only PDF must not be reported as text-bearing."""
@@ -245,15 +241,15 @@ class TestEndToEndPipeline:
 
     def test_pipeline_image_to_searchable_pdf(self, text_png: Path, consume_dir: Path):
         # Phase 1: image → PDF in consume folder
-        pdf = ImageConverter(text_png, consume_dir).convert_to_pdf()
-        assert pdf.exists()
-        assert pdf.parent == consume_dir
+        pdf_path = image_converter.convert_image_to_pdf(text_png, consume_dir)
+        assert pdf_path.exists()
+        assert pdf_path.parent == consume_dir
 
         # Phase 2: OCR the converted PDF (Paperless's second pass)
         OCRProcessor(
-            pdf,
+            pdf_path,
             {"mode": "force", "language": "eng", "output_type": "pdf"},
         ).process()
 
         # Final artifact is searchable
-        assert pdf.has_text(pdf) is True
+        assert pdf.has_text(pdf_path) is True
