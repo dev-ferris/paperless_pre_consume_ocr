@@ -160,6 +160,14 @@ service in `docker-compose.yml`:
       # already searchable, so the archive copy is redundant.
       PAPERLESS_OCR_SKIP_ARCHIVE_FILE: with_text
 
+      # Optional: move image originals to Paperless's trash folder
+      # instead of deleting them after conversion. If unset (or the
+      # path does not exist), the originals are deleted. The same
+      # folder is used by Paperless itself for trashed documents, so
+      # mount it on a persistent volume if you want to be able to
+      # recover files.
+      PAPERLESS_EMPTY_TRASH_DIR: /usr/src/paperless/trash
+
       # Database access (used by the script to read the OCR settings
       # configured in the Paperless-NGX UI). These are normally already
       # present in your compose file for Paperless itself.
@@ -173,7 +181,45 @@ service in `docker-compose.yml`:
       # PAPERLESS_PRE_CONSUME_LOG_LEVEL: DEBUG
 ```
 
-#### 3. Restart and verify
+#### 3. Configure OCR settings in the Paperless-NGX UI
+
+The script reads its OCR configuration at runtime from the Paperless
+database — the same settings you see in the admin UI under
+**Administration → Settings → General → OCR**. There is **no** separate
+config file for this project: whatever you configure in the UI is what
+`ocrmypdf` will be invoked with on the next consumed document.
+
+The following UI fields are picked up (all optional — sensible
+defaults from `DEFAULT_OCR_CONFIG` apply for any field left blank):
+
+| UI field | DB column | Typical value | Notes |
+|----------|-----------|---------------|-------|
+| OCR language | `language` | `deu+eng` | Multiple languages joined with `+` |
+| OCR mode | `mode` | `skip` | `skip` is recommended — see below |
+| Image DPI | `image_dpi` | `300` | Only used for rasterised input |
+| OCR output type | `output_type` | `pdf` | Use `pdf` unless you specifically want `pdfa` |
+| Deskew | `deskew` | `true` | Straightens slightly rotated scans |
+| Rotate pages | `rotate_pages` | `true` | Auto-rotates pages based on text orientation |
+| Rotate pages threshold | `rotate_pages_threshold` | `8.0` | Confidence threshold for auto-rotation |
+| Color conversion strategy | `color_conversion_strategy` | `LeaveColorUnchanged` | |
+| Max image pixels | `max_image_pixels` | `178956970` | Protects against decompression bombs |
+
+**Recommended OCR mode: `skip`.** With `skip`, the pre-consume script
+only runs OCR on PDFs that do not already contain a text layer, and
+leaves already-searchable PDFs untouched. This avoids re-OCR when a
+scan has been processed before and also plays well with Paperless's
+own OCR stage (which is set to skip by default), so nothing gets
+OCR'd twice.
+
+Use `force` or `redo` only if you specifically want the pre-consume
+script to replace an existing text layer — for example when the
+upstream OCR was low-quality.
+
+> **Tip:** after changing the UI settings, the next document you drop
+> into the consume folder immediately uses the new configuration; no
+> Paperless restart is required.
+
+#### 4. Restart and verify
 
 ```bash
 docker compose up -d --build
