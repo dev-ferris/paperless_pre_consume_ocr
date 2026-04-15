@@ -194,7 +194,7 @@ Paperless-NGX sets these automatically when invoking the pre-consume script:
 | Variable | Description |
 |----------|-------------|
 | `DOCUMENT_WORKING_PATH` | Path to Paperless's scratch copy of the file being processed (required) |
-| `DOCUMENT_SOURCE_PATH` | Path to the original file in the consume folder. Used to delete the original image after conversion so it does not keep re-triggering the consumer (optional but recommended) |
+| `DOCUMENT_SOURCE_PATH` | Path to the original file in the consume folder. Used to dispose of the original image after conversion so it does not keep re-triggering the consumer (optional but recommended) |
 | `DOCUMENT_CONSUME_PATH` | Path to the consume folder (default: `/usr/src/paperless/consume`) |
 | `TASK_ID` | ID of the processing task (optional) |
 | `PAPERLESS_DBHOST` | Database host (required) |
@@ -202,6 +202,7 @@ Paperless-NGX sets these automatically when invoking the pre-consume script:
 | `PAPERLESS_DBNAME` | Database name (default: `paperless`) |
 | `PAPERLESS_DBUSER` | Database user (default: `paperless`) |
 | `PAPERLESS_DBPW` | Database password (default: `paperless`) |
+| `PAPERLESS_EMPTY_TRASH_DIR` | If set and the directory exists, converted image originals are **moved** there instead of being deleted. Absolute paths are used as-is; relative paths are resolved first against the current working directory, then against the parent of `DOCUMENT_CONSUME_PATH`. Falls back to deletion if the path cannot be resolved. |
 | `PAPERLESS_PRE_CONSUME_LOG_LEVEL` | Log level for the pre-consume script (default: `INFO`, e.g. `DEBUG`) |
 
 ## Exit codes
