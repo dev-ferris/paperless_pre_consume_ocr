@@ -2,11 +2,18 @@ import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from paperless_pre_consume_ocr.cli import EXIT_IMAGE_CONVERTED, main
 
 
 class TestMain:
     """Tests for the main entry point."""
+
+    @pytest.fixture(autouse=True)
+    def _clear_trash_env(self, monkeypatch):
+        """Make sure PAPERLESS_EMPTY_TRASH_DIR never leaks across tests."""
+        monkeypatch.delenv("PAPERLESS_EMPTY_TRASH_DIR", raising=False)
 
     @patch("paperless_pre_consume_ocr.cli.load_environment")
     def test_unsupported_format_returns_ok(self, mock_load_env):
@@ -162,6 +169,143 @@ class TestMain:
         result = main()
         assert result == EXIT_IMAGE_CONVERTED
         fake_source.unlink.assert_called_once_with(missing_ok=True)
+
+    @patch("paperless_pre_consume_ocr.cli.image_converter")
+    @patch("paperless_pre_consume_ocr.cli.load_environment")
+    def test_image_moved_to_absolute_trash_dir(
+        self, mock_load_env, mock_image_converter, tmp_path, monkeypatch
+    ):
+        """With an absolute PAPERLESS_EMPTY_TRASH_DIR the image must be moved there."""
+        consume_dir = tmp_path / "consume"
+        consume_dir.mkdir()
+        trash_dir = tmp_path / "trash"
+        trash_dir.mkdir()
+        source_file = consume_dir / "scan.jpg"
+        source_file.write_bytes(b"fake image bytes")
+
+        monkeypatch.setenv("PAPERLESS_EMPTY_TRASH_DIR", str(trash_dir))
+
+        mock_env = MagicMock()
+        mock_env.paths.working.suffix = ".jpg"
+        mock_env.paths.source = source_file
+        mock_env.paths.consume = consume_dir
+        mock_load_env.return_value = mock_env
+
+        mock_image_converter.SUPPORTED_FORMATS = frozenset({".jpg"})
+        mock_pdf_path = MagicMock()
+        mock_pdf_path.exists.return_value = True
+        mock_image_converter.convert_image_to_pdf.return_value = mock_pdf_path
+
+        result = main()
+
+        assert result == EXIT_IMAGE_CONVERTED
+        assert not source_file.exists(), "original must be gone from consume/"
+        moved = trash_dir / "scan.jpg"
+        assert moved.exists(), "original must have landed in trash"
+        assert moved.read_bytes() == b"fake image bytes"
+
+    @patch("paperless_pre_consume_ocr.cli.image_converter")
+    @patch("paperless_pre_consume_ocr.cli.load_environment")
+    def test_image_moved_to_relative_trash_dir(
+        self, mock_load_env, mock_image_converter, tmp_path, monkeypatch
+    ):
+        """Relative PAPERLESS_EMPTY_TRASH_DIR must resolve against consume.parent."""
+        paperless_base = tmp_path / "paperless"
+        paperless_base.mkdir()
+        consume_dir = paperless_base / "consume"
+        consume_dir.mkdir()
+        trash_dir = paperless_base / "trash"
+        trash_dir.mkdir()
+        source_file = consume_dir / "photo.png"
+        source_file.write_bytes(b"png bytes")
+
+        # Relative path — resolved via consume.parent fallback
+        monkeypatch.setenv("PAPERLESS_EMPTY_TRASH_DIR", "trash")
+
+        mock_env = MagicMock()
+        mock_env.paths.working.suffix = ".png"
+        mock_env.paths.source = source_file
+        mock_env.paths.consume = consume_dir
+        mock_load_env.return_value = mock_env
+
+        mock_image_converter.SUPPORTED_FORMATS = frozenset({".png"})
+        mock_pdf_path = MagicMock()
+        mock_pdf_path.exists.return_value = True
+        mock_image_converter.convert_image_to_pdf.return_value = mock_pdf_path
+
+        result = main()
+
+        assert result == EXIT_IMAGE_CONVERTED
+        assert not source_file.exists()
+        assert (trash_dir / "photo.png").exists()
+
+    @patch("paperless_pre_consume_ocr.cli.image_converter")
+    @patch("paperless_pre_consume_ocr.cli.load_environment")
+    def test_trash_dir_missing_falls_back_to_delete(
+        self, mock_load_env, mock_image_converter, tmp_path, monkeypatch
+    ):
+        """A configured but non-existent trash dir must fall back to deletion."""
+        consume_dir = tmp_path / "consume"
+        consume_dir.mkdir()
+        source_file = consume_dir / "scan.jpg"
+        source_file.write_bytes(b"fake image bytes")
+
+        # Path does not exist anywhere
+        monkeypatch.setenv("PAPERLESS_EMPTY_TRASH_DIR", str(tmp_path / "nonexistent"))
+
+        mock_env = MagicMock()
+        mock_env.paths.working.suffix = ".jpg"
+        mock_env.paths.source = source_file
+        mock_env.paths.consume = consume_dir
+        mock_load_env.return_value = mock_env
+
+        mock_image_converter.SUPPORTED_FORMATS = frozenset({".jpg"})
+        mock_pdf_path = MagicMock()
+        mock_pdf_path.exists.return_value = True
+        mock_image_converter.convert_image_to_pdf.return_value = mock_pdf_path
+
+        result = main()
+
+        assert result == EXIT_IMAGE_CONVERTED
+        assert not source_file.exists(), "fallback deletion must have removed the original"
+
+    @patch("paperless_pre_consume_ocr.cli.image_converter")
+    @patch("paperless_pre_consume_ocr.cli.load_environment")
+    def test_trash_dir_filename_collision_gets_unique_suffix(
+        self, mock_load_env, mock_image_converter, tmp_path, monkeypatch
+    ):
+        """An existing file in trash must not be clobbered."""
+        consume_dir = tmp_path / "consume"
+        consume_dir.mkdir()
+        trash_dir = tmp_path / "trash"
+        trash_dir.mkdir()
+        # Pre-existing file in trash with the same name
+        (trash_dir / "scan.jpg").write_bytes(b"older file")
+
+        source_file = consume_dir / "scan.jpg"
+        source_file.write_bytes(b"newer file")
+
+        monkeypatch.setenv("PAPERLESS_EMPTY_TRASH_DIR", str(trash_dir))
+
+        mock_env = MagicMock()
+        mock_env.paths.working.suffix = ".jpg"
+        mock_env.paths.source = source_file
+        mock_env.paths.consume = consume_dir
+        mock_load_env.return_value = mock_env
+
+        mock_image_converter.SUPPORTED_FORMATS = frozenset({".jpg"})
+        mock_pdf_path = MagicMock()
+        mock_pdf_path.exists.return_value = True
+        mock_image_converter.convert_image_to_pdf.return_value = mock_pdf_path
+
+        result = main()
+
+        assert result == EXIT_IMAGE_CONVERTED
+        # Original pre-existing file must still be intact
+        assert (trash_dir / "scan.jpg").read_bytes() == b"older file"
+        # New file must have landed under a suffixed name
+        assert (trash_dir / "scan_1.jpg").read_bytes() == b"newer file"
+        assert not source_file.exists()
 
     @patch("paperless_pre_consume_ocr.cli.load_environment")
     def test_unexpected_error_returns_3(self, mock_load_env):
